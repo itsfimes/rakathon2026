@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import secrets
 from contextlib import AsyncExitStack, suppress
 from pathlib import Path
 from typing import Any
@@ -27,19 +26,29 @@ from rakathon_backend.b5.opencode.validation import (
     AI_GATEWAY_TIMEOUT,
     AI_IPC_TIMEOUT,
 )
-from rakathon_backend.b6.permissions import load_matrix, make_authorize_handler, privileged_users
+from rakathon_backend.b6.permissions import (
+    load_matrix,
+    make_authorize_handler,
+    privileged_users,
+)
+from rakathon_backend.b7.handler import make_handler as b7_handler
 from rakathon_backend.common.blob_store import BlobStore
 from rakathon_backend.common.contracts import DataKind, Health
 from rakathon_backend.common.ipc import UnixJsonClient, UnixJsonServer
 from rakathon_backend.common.rpc import check_auth, make_client, new_envelope, socket_for
 from rakathon_backend.runtime.fixtures import complete_fixture
+from rakathon_backend.runtime.tokens import (
+    AI_MODES,
+    FRONTEND_USERS,
+    KILL_POLL_SECONDS,
+    MAX_WATCHDOG_INTERVAL,
+    MIN_WATCHDOG_INTERVAL,
+    SERVICES,
+    _closer,
+    fresh_tokens,
+)
 
-FRONTEND_USERS = ("admin", "coordinator", "clinician", "viewer", "watchdog")
-SERVICES = ("b1", "b2", "b3", "b4", "b5", "b6")
-AI_MODES = ("mock", "opencode")
-MIN_WATCHDOG_INTERVAL = 0.1
-MAX_WATCHDOG_INTERVAL = 3600.0
-KILL_POLL_SECONDS = 1.0
+__all__ = ["BackendApp", "fresh_tokens"]
 
 
 class BackendApp:
@@ -55,6 +64,7 @@ class BackendApp:
         kill_file: Path | str | None = None,
         watchdog_interval: float | None = None,
         screening: ScreeningPort | None = None,
+        auth: Any | None = None,
     ) -> None:
         if ai_mode not in AI_MODES:
             raise ValueError("ai_mode must be mock or opencode")
@@ -80,6 +90,7 @@ class BackendApp:
             self._switch = KillSwitch()
         self._kill_file = Path(kill_file) if kill_file else None
         self._watchdog_interval = watchdog_interval
+        self._auth = auth
         self._stack = AsyncExitStack()
         self._servers: dict[str, UnixJsonServer] = {}
         self._b3: B3Service | None = None
@@ -113,10 +124,16 @@ class BackendApp:
         edge_timeout = AI_EDGE_TIMEOUT if ai_backed else 5.0
         registry = self.registry()
         policy = load_matrix()
+        auth = self._auth
         b6_handler = make_authorize_handler(
-            policy, service_name="b6", allowed_sources=frozenset({"b4", "b3", "b2", "b1", "b5"})
+            policy,
+            service_name="b6",
+            allowed_sources=frozenset({"b4", "b3", "b2", "b1", "b5"}),
+            role_resolver=auth.role_resolver if auth is not None else None,
         )
         await self._add("b6", registry, b6_handler)
+        if auth is not None:
+            await self._add("b7", registry, b7_handler(auth.service))
 
         def make_b6check(source: str) -> Any:
             async def check(*, user_id: str, action: str, correlation_id: str) -> bool:
@@ -136,8 +153,12 @@ class BackendApp:
         b6_b3 = make_b6check("b3")
 
         b2 = B2Service(
-            self.store, b6_b2, mode=self.mode, privileged_users=privileged_users(policy),
+            self.store,
+            b6_b2,
+            mode=self.mode,
+            privileged_users=privileged_users(policy),
             screening=self.screening,
+            is_privileged=auth.is_privileged if auth is not None else None,
         )
         await self._add("b2", registry, b2_handler(b2))
 
@@ -200,6 +221,8 @@ class BackendApp:
             source_users,
             ai_pending_timeout=AI_FRONTEND_TIMEOUT,
             privileged_users=privileged_users(policy),
+            web_sources=auth.web_sources if auth is not None else None,
+            is_privileged=auth.is_privileged if auth is not None else None,
         )
         self._b4 = router
         await self._add("b4", registry, b4_handler(router), timeout=edge_timeout)
@@ -296,14 +319,7 @@ class BackendApp:
 
     async def health_all(self) -> dict[str, str]:
         out: dict[str, str] = {}
-        probe_sources = {
-            "b6": "b4",
-            "b2": "b4",
-            "b5": "b1",
-            "b1": "b4",
-            "b4": "frontend:admin",
-            "b3": "b3",
-        }
+        probe_sources = {"b5": "b1", "b4": "frontend:admin", "b3": "b3"}
         for name in SERVICES:
             src = probe_sources.get(name, "b4")
             token = self.tokens.get(src, next(iter(self.tokens.values())))
@@ -331,19 +347,3 @@ class BackendApp:
     @property
     def kill_switch(self) -> KillSwitch:
         return self._switch
-
-
-class _closer:
-    def __init__(self, server: UnixJsonServer) -> None:
-        self._server = server
-
-    async def __aenter__(self) -> UnixJsonServer:
-        return self._server
-
-    async def __aexit__(self, *args: object) -> None:
-        await self._server.close()
-
-
-def fresh_tokens() -> dict[str, str]:
-    names = list(SERVICES) + [f"frontend:{u}" for u in FRONTEND_USERS]
-    return {name: secrets.token_urlsafe(32) for name in names}

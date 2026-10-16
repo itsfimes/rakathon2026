@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -127,17 +128,15 @@ async def cmd_ingest_file(args: argparse.Namespace) -> int:
         shutil.rmtree(runtime_dir, ignore_errors=True)
         print(json.dumps({"error": "serve_startup_failed", "message": str(exc)}))
         if adapter is not None:
-            try:
+            with contextlib.suppress(OSError, ContractError, TransportError):
                 await adapter.close()
-            except Exception:
-                pass
         return 1
     try:
         summary = await _run_ingest(app, data, mime, user, ai_mode)
     except (AuthError, ContractError, TransportError, OSError, TimeoutError) as exc:
         print(json.dumps({"error": type(exc).__name__, "message": str(exc)}))
         return 1
-    except Exception:
+    except (ValueError, KeyError, RuntimeError):
         print(json.dumps({"error": "ingest_failed"}))
         return 1
     finally:

@@ -7,7 +7,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from rakathon_backend.common.contracts import DataKind, Envelope
-from rakathon_backend.common.errors import AuthError, ContractError
+from rakathon_backend.common.errors import AuthError, ContractError, TransportError
 
 HEALTH = "health"
 INGEST = "ingest"
@@ -67,14 +67,37 @@ class Policy:
         return self.roles.get(role, frozenset())
 
 
+RoleResolver = Callable[[str], str | None]
+
+
 def canonical_action(action: str) -> str:
     if action == FHIR_SEARCH:
         return FHIR_READ
     return action
 
 
-def check(policy: Policy, user_id: str, action: str) -> Decision:
-    role = policy.role_for(user_id)
+def _resolve_role(policy: Policy, user_id: str, role_resolver: RoleResolver | None) -> str | None:
+    if role_resolver is None:
+        return policy.role_for(user_id)
+    try:
+        resolved = role_resolver(user_id)
+    except (ContractError, AuthError, TransportError, OSError, ValueError):
+        return None
+    except (KeyError, RuntimeError, AttributeError, TypeError):
+        return None
+    if resolved is None:
+        return None
+    if not isinstance(resolved, str) or resolved not in policy.roles:
+        return None
+    if resolved == "watchdog" and user_id != "watchdog":
+        return None
+    return resolved
+
+
+def check(
+    policy: Policy, user_id: str, action: str, role_resolver: RoleResolver | None = None
+) -> Decision:
+    role = _resolve_role(policy, user_id, role_resolver)
     if role is None:
         return Decision(allowed=False, reason="unknown user")
     action = canonical_action(action)
@@ -138,6 +161,7 @@ def make_authorize_handler(
     *,
     service_name: str,
     allowed_sources: frozenset[str],
+    role_resolver: RoleResolver | None = None,
 ) -> Callable[[Envelope], Awaitable[Envelope]]:
     if not service_name or not service_name.strip():
         raise ValueError("service_name must be nonempty")
@@ -156,7 +180,12 @@ def make_authorize_handler(
             raise ContractError(code="bad_payload", message="userId must be a string")
         if not isinstance(action, str) or not action.strip():
             raise ContractError(code="bad_payload", message="action must be a string")
-        decision = check(policy, user_id, action)
+        envelope_user = request.user_id
+        if not isinstance(envelope_user, str) or not envelope_user.strip():
+            raise ContractError(code="bad_payload", message="userId must be a string")
+        if envelope_user != user_id:
+            raise AuthError(code="auth_failed", message="user mismatch")
+        decision = check(policy, user_id, action, role_resolver)
         return request.reply(
             source=service_name,
             action=AUTHORIZE,

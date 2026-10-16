@@ -5,6 +5,12 @@ import asyncio
 import json
 from pathlib import Path
 
+from rakathon_backend.runtime.auth_cmds import (
+    cmd_auth_init,
+    cmd_auth_user_add,
+    cmd_auth_user_disable,
+)
+from rakathon_backend.runtime.auth_serve import cmd_auth_serve
 from rakathon_backend.runtime.commands import (
     cmd_ai_check,
     cmd_bridge_serve,
@@ -95,6 +101,28 @@ def build_parser() -> argparse.ArgumentParser:
     simp.add_argument("--batch-size", type=int, default=500)
     _add_env_file_arg(simp)
     sub.add_parser("screening-init-db", help="create iris screening table")
+    ainit = sub.add_parser("auth-init", help="initialize private auth directory")
+    ainit.add_argument("--auth-store", choices=("demo", "iris"), required=True)
+    ainit.add_argument("--auth-dir", required=True)
+    auadd = sub.add_parser("auth-user-add", help="provision a local auth user")
+    auadd.add_argument("--auth-store", choices=("demo", "iris"), required=True)
+    auadd.add_argument("--auth-dir", required=True)
+    auadd.add_argument("--username", required=True)
+    auadd.add_argument("--role", required=True)
+    audis = sub.add_parser("auth-user-disable", help="disable a local auth user")
+    audis.add_argument("--auth-store", choices=("demo", "iris"), required=True)
+    audis.add_argument("--auth-dir", required=True)
+    audis.add_argument("--user-id", required=True)
+    aserve = sub.add_parser("auth-serve", help="serve authenticated UDS plus HTTP edge")
+    aserve.add_argument("--auth-store", choices=("demo", "iris"), required=True)
+    aserve.add_argument("--auth-dir", required=True)
+    aserve.add_argument("--origin", required=True)
+    aserve.add_argument("--allow-loopback-http", action="store_true")
+    aserve.add_argument("--bind", default="127.0.0.1")
+    aserve.add_argument("--port", type=int, default=8765)
+    aserve.add_argument("--storage", choices=("mock", "iris-fhir"), default="mock")
+    aserve.add_argument("--runtime-dir", default=None)
+    _add_env_file_arg(aserve)
     return parser
 
 
@@ -150,6 +178,16 @@ async def _async_main(argv: list[str] | None = None) -> int:
         return cmd_screening_import(args)
     if args.command == "screening-init-db":
         return cmd_screening_init_db()
+    if args.command == "auth-init":
+        return cmd_auth_init(str(args.auth_store), str(args.auth_dir))
+    if args.command == "auth-user-add":
+        return cmd_auth_user_add(
+            str(args.auth_store), str(args.auth_dir), str(args.username), str(args.role)
+        )
+    if args.command == "auth-user-disable":
+        return cmd_auth_user_disable(str(args.auth_store), str(args.auth_dir), str(args.user_id))
+    if args.command == "auth-serve":
+        return await cmd_auth_serve(args)
     return 2
 
 

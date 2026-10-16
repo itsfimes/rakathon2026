@@ -8,7 +8,7 @@ from rakathon_backend.b6.permissions import (
     make_authorize_handler,
 )
 from rakathon_backend.common.contracts import DataKind, Envelope
-from rakathon_backend.common.errors import AuthError
+from rakathon_backend.common.errors import AuthError, ContractError
 
 
 def test_matrix_loads_packaged() -> None:
@@ -77,6 +77,7 @@ async def test_authorize_handler_allows_known() -> None:
         action="authorize",
         data_kind=DataKind.METADATA,
         payload={"userId": "viewer", "action": "tasks.read"},
+        user_id="viewer",
     )
     reply = await handler(request)
     assert reply.payload["allowed"] is True
@@ -94,6 +95,7 @@ async def test_authorize_handler_denies_unknown_user() -> None:
         action="authorize",
         data_kind=DataKind.METADATA,
         payload={"userId": "ghost", "action": "tasks.read"},
+        user_id="ghost",
     )
     reply = await handler(request)
     assert reply.payload["allowed"] is False
@@ -110,6 +112,33 @@ async def test_authorize_handler_rejects_untrusted_source() -> None:
         action="authorize",
         data_kind=DataKind.METADATA,
         payload={"userId": "viewer", "action": "tasks.read"},
+        user_id="viewer",
     )
     with pytest.raises(AuthError):
         await handler(request)
+
+
+async def test_authorize_handler_binds_envelope_user() -> None:
+    policy = load_matrix()
+    handler = make_authorize_handler(policy, service_name="b6", allowed_sources=frozenset({"b4"}))
+
+    def ask(payload_user: str, envelope_user: str | None) -> Envelope:
+        return Envelope(
+            request_id="r",
+            correlation_id="c",
+            source="b4",
+            target="b6",
+            action="authorize",
+            data_kind=DataKind.METADATA,
+            payload={"userId": payload_user, "action": "tasks.read"},
+            user_id=envelope_user,
+        )
+
+    reply = await handler(ask("viewer", "viewer"))
+    assert reply.payload["allowed"] is True
+    with pytest.raises(AuthError):
+        await handler(ask("viewer", "clinician"))
+    with pytest.raises(ContractError):
+        await handler(ask("viewer", None))
+    with pytest.raises(ContractError):
+        await handler(ask("", ""))

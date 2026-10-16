@@ -78,9 +78,7 @@ def cmd_bridge_serve(bind: str, port: int, mock_storage: bool) -> int:
         screening = ScreeningSqlStore(sql_config, factory=tasks_factory)
         store = CompositeIrisStorage(fhir, sql, screening=screening)
         mode = "bridge"
-    server = build_server(
-        bind, port, Path(key_file), key_id, store, mode=mode, screening=screening
-    )
+    server = build_server(bind, port, Path(key_file), key_id, store, mode=mode, screening=screening)
     print(json.dumps({"serving": True, "bind": bind, "port": port, "mode": mode}))
     sys.stdout.flush()
     serve_forever(server)

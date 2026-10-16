@@ -15,7 +15,7 @@ from rakathon_backend.b2.validation import (
 )
 from rakathon_backend.b6.permissions import canonical_action
 from rakathon_backend.common.contracts import DataKind, Envelope
-from rakathon_backend.common.errors import AuthError, ContractError
+from rakathon_backend.common.errors import AuthError, ContractError, TransportError
 from rakathon_backend.common.fhir import ALLOWED_TYPES, check_bundle, check_resource
 
 SERVICE_NAME = "b2"
@@ -85,12 +85,22 @@ class B2Service:
         mode: str = "mock",
         privileged_users: frozenset[str] | None = None,
         screening: ScreeningPort | None = None,
+        is_privileged: Callable[[str], bool] | None = None,
     ) -> None:
         self._store = store
         self._auth = auth_check
         self._mode = mode
         self._privileged = frozenset(privileged_users) if privileged_users else frozenset()
         self._screening = screening
+        self._is_privileged = is_privileged
+
+    def _privileged_for(self, user_id: str) -> bool:
+        if self._is_privileged is None:
+            return user_id in self._privileged
+        try:
+            return bool(self._is_privileged(user_id))
+        except (AuthError, ContractError, TransportError, OSError, ValueError, KeyError):
+            return False
 
     async def handle(self, request: Envelope) -> Envelope:
         if request.target != SERVICE_NAME:
@@ -231,7 +241,7 @@ class B2Service:
             raise ContractError(code="bad_payload", message="task id invalid")
         needle = task_id.strip() if isinstance(task_id, str) else None
         items = await asyncio.to_thread(self._store.tasks_read, needle)
-        if user_id in self._privileged:
+        if self._privileged_for(user_id):
             visible = list(items)
         else:
             visible = [t for t in items if self._visible_to(t, user_id)]

@@ -248,6 +248,7 @@ async def test_b6_unknown_permission_denied_over_ipc() -> None:
                 action="authorize",
                 data_kind=DataKind.METADATA,
                 payload={"userId": "ghost", "action": "tasks.read"},
+                user_id="ghost",
             )
             reply = await client.call(request, expect_source="b6")
             assert reply.payload["allowed"] is False

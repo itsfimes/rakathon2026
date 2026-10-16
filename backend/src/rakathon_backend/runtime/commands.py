@@ -66,7 +66,10 @@ def bridge_store_from_env() -> EncryptedBridgeStorage:
 
 
 async def cmd_serve(
-    runtime_dir: Path, storage: str, ai: str, watchdog_interval: float,
+    runtime_dir: Path,
+    storage: str,
+    ai: str,
+    watchdog_interval: float,
     screening_source: str | None = None,
 ) -> int:
     if watchdog_interval < 0.1:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
@@ -53,6 +54,11 @@ class Downstream(Protocol):
     def __call__(self, request: Envelope) -> Awaitable[Envelope]: ...
 
 
+PrivilegeCheck = Callable[[str], bool]
+
+WEB_AUTH_SOURCE = "web:auth"
+
+
 class B4Router:
     def __init__(
         self,
@@ -64,6 +70,8 @@ class B4Router:
         pending_timeout: float = 30.0,
         ai_pending_timeout: float = AI_PENDING_TIMEOUT,
         privileged_users: frozenset[str] | None = None,
+        web_sources: frozenset[str] | None = None,
+        is_privileged: PrivilegeCheck | None = None,
     ) -> None:
         if pending_timeout <= 0 or ai_pending_timeout <= 0:
             raise ValueError("pending timeouts must be positive")
@@ -78,6 +86,8 @@ class B4Router:
         self._pending_timeout = pending_timeout
         self._ai_pending_timeout = ai_pending_timeout
         self._privileged = frozenset(privileged_users) if privileged_users else frozenset()
+        self._web_sources = frozenset(web_sources) if web_sources else frozenset()
+        self._is_privileged = is_privileged
 
     def register_source(self, source: str, user_id: str) -> None:
         self._source_users[source] = user_id
@@ -88,11 +98,28 @@ class B4Router:
     def pending_count(self) -> int:
         return len(self._pending)
 
+    def _privileged_for(self, user_id: str) -> bool:
+        if self._is_privileged is not None:
+            try:
+                return bool(self._is_privileged(user_id))
+            except (ContractError, AuthError, TransportError, OSError, ValueError):
+                return False
+            except (KeyError, RuntimeError, AttributeError, TypeError):
+                return False
+        return user_id in self._privileged
+
+    def _visible_set(self, user_id: str) -> frozenset[str]:
+        if self._is_privileged is not None:
+            return frozenset({user_id}) if self._privileged_for(user_id) else frozenset()
+        return self._privileged
+
     async def handle(self, request: Envelope) -> Envelope:
         if request.target != SERVICE_NAME:
             raise ContractError(code="target_mismatch", message="request target mismatch")
         if request.source.startswith("frontend:"):
             return await self._handle_frontend(request)
+        if request.source in self._web_sources:
+            return await self._handle_web(request)
         if request.source == "b3":
             return await self._handle_b3(request)
         if request.source in ("b1", "b2", "b5"):
@@ -106,7 +133,15 @@ class B4Router:
         claimed = request.user_id or ""
         if claimed != expected:
             raise AuthError(code="auth_failed", message="user identity mismatch")
-        user_id = expected
+        return await self._authorize_and_route(request, expected)
+
+    async def _handle_web(self, request: Envelope) -> Envelope:
+        user_id = request.user_id or ""
+        if not user_id or not user_id.strip():
+            raise AuthError(code="auth_failed", message="web identity is missing")
+        return await self._authorize_and_route(request, user_id.strip())
+
+    async def _authorize_and_route(self, request: Envelope, user_id: str) -> Envelope:
         action = request.action
         if action not in USER_ACTIONS:
             raise ContractError(code="bad_action", message="unsupported action")
@@ -171,7 +206,7 @@ class B4Router:
             raise AuthError(code="auth_failed", message="reminders.read is not permitted")
         raw_filter = request.payload.get("ownerId")
         owner_filter = raw_filter if isinstance(raw_filter, str) else None
-        items = self._reminders.visible(user_id, self._privileged, owner_filter)
+        items = self._reminders.visible(user_id, self._visible_set(user_id), owner_filter)
         ids = [{"taskId": r.get("taskId"), "reason": r.get("reason")} for r in items]
         return request.reply(
             source=SERVICE_NAME,
@@ -280,3 +315,26 @@ def make_handler(router: B4Router) -> Callable[[Envelope], Awaitable[Envelope]]:
         return await router.handle(request)
 
     return handler
+
+
+def web_envelope(
+    user_id: str, action: str, payload: dict[str, Any], data_kind: DataKind
+) -> Envelope:
+    for key in ("userId", "user_id", "role", "username"):
+        if key in payload:
+            raise ContractError(code="bad_payload", message="authority fields are rejected")
+    clean = dict(payload)
+    uid = user_id.strip()
+    if not uid:
+        raise ContractError(code="bad_payload", message="verified identity is required")
+    tag = uuid.uuid4().hex
+    return Envelope(
+        request_id=f"web-{tag}",
+        correlation_id=f"web-{tag}",
+        source=WEB_AUTH_SOURCE,
+        target=SERVICE_NAME,
+        action=action,
+        data_kind=data_kind,
+        payload=clean,
+        user_id=uid,
+    )
