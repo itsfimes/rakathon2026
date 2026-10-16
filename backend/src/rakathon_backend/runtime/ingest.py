@@ -1,0 +1,220 @@
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import secrets
+import shutil
+import stat
+from pathlib import Path
+from typing import Any
+
+from rakathon_backend.b5.opencode.validation import AI_EDGE_TIMEOUT
+from rakathon_backend.common.blob_store import DOCX_MIME, MAX_BLOB_BYTES
+from rakathon_backend.common.errors import AuthError, ContractError, TransportError
+from rakathon_backend.common.fhir import is_manual_review, resource_counts
+from rakathon_backend.common.kinds import request_kind
+from rakathon_backend.common.rpc import make_client, new_envelope
+from rakathon_backend.runtime.application import BackendApp, fresh_tokens
+from rakathon_backend.runtime.commands import (
+    ai_config_from_env,
+    short_runtime,
+    start_ai_adapter,
+)
+
+SUFFIX_MIMES = {".docx": DOCX_MIME, ".txt": "text/plain", ".json": "application/json"}
+MOCK_TIMEOUT = 60.0
+
+
+def _error(message: str) -> int:
+    print(json.dumps({"error": message}))
+    return 2
+
+
+def _read_input(raw_path: str) -> tuple[bytes, str]:
+    target = Path(raw_path)
+    try:
+        info = os.lstat(target)
+    except OSError as exc:
+        raise ContractError(code="input_unreadable", message="input file is not readable") from exc
+    if stat.S_ISLNK(info.st_mode):
+        raise ContractError(code="input_unreadable", message="input file must not be a symlink")
+    if not stat.S_ISREG(info.st_mode):
+        raise ContractError(code="input_unreadable", message="input file is not a regular file")
+    if info.st_size > MAX_BLOB_BYTES:
+        raise ContractError(code="input_too_large", message="input file exceeds the size cap")
+    suffix = target.suffix.lower()
+    mime = SUFFIX_MIMES.get(suffix)
+    if mime is None:
+        raise ContractError(code="input_unsupported", message="input suffix is not supported")
+    try:
+        with open(target, "rb") as handle:
+            data = handle.read(MAX_BLOB_BYTES + 1)
+    except OSError as exc:
+        raise ContractError(code="input_unreadable", message="input file is not readable") from exc
+    if len(data) > MAX_BLOB_BYTES:
+        raise ContractError(code="input_too_large", message="input file exceeds the size cap")
+    if not data:
+        raise ContractError(code="input_unreadable", message="input file is empty")
+    return (data, mime)
+
+
+def _write_output_file(raw_path: str, payload: dict[str, Any]) -> None:
+    target = Path(raw_path)
+    try:
+        if os.path.lexists(target):
+            raise ContractError(code="output_refused", message="output file must not exist")
+        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    except ContractError:
+        raise
+    except OSError as exc:
+        raise ContractError(code="output_refused", message="output file is not safe") from exc
+    try:
+        os.write(fd, (json.dumps(payload, indent=2) + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def _owned_runtime(explicit: str | None) -> tuple[Path, bool]:
+    if explicit:
+        base = Path(explicit)
+        if not base.is_dir() or base.is_symlink():
+            raise ContractError(code="runtime_refused", message="runtime dir is not usable")
+        owned = base / f"ingest-{secrets.token_hex(8)}"
+        try:
+            owned.mkdir(mode=0o700, parents=False, exist_ok=False)
+        except OSError as exc:
+            raise ContractError(
+                code="runtime_refused", message="runtime dir is not usable"
+            ) from exc
+        return (owned, True)
+    return (short_runtime(None), True)
+
+
+async def cmd_ingest_file(args: argparse.Namespace) -> int:
+    user = str(getattr(args, "user", "") or "").strip()
+    if not user:
+        return _error("user is required")
+    ai_mode = str(getattr(args, "ai", "mock") or "mock")
+    if ai_mode not in ("mock", "opencode"):
+        return _error("ai mode must be mock or opencode")
+    try:
+        data, mime = _read_input(str(args.path))
+    except ContractError as exc:
+        return _error(exc.code)
+    try:
+        runtime_dir, _ = _owned_runtime(getattr(args, "runtime_dir", None))
+    except ContractError as exc:
+        return _error(exc.code)
+    adapter = None
+    if ai_mode == "opencode":
+        config = ai_config_from_env()
+        if not config.ready:
+            shutil.rmtree(runtime_dir, ignore_errors=True)
+            print(json.dumps({"error": "ai_not_configured", "blockers": list(config.blockers)}))
+            return 2
+        try:
+            adapter = await start_ai_adapter(config)
+        except (ContractError, TransportError, OSError, ValueError) as exc:
+            shutil.rmtree(runtime_dir, ignore_errors=True)
+            print(json.dumps({"error": "ai_startup_failed", "message": str(exc)}))
+            return 2
+    app = BackendApp(runtime_dir, fresh_tokens(), ai_adapter=adapter, ai_mode=ai_mode)
+    try:
+        await app.start()
+    except (ContractError, TransportError, OSError, ValueError, RuntimeError) as exc:
+        shutil.rmtree(runtime_dir, ignore_errors=True)
+        print(json.dumps({"error": "serve_startup_failed", "message": str(exc)}))
+        if adapter is not None:
+            try:
+                await adapter.close()
+            except Exception:
+                pass
+        return 1
+    try:
+        summary = await _run_ingest(app, data, mime, user, ai_mode)
+    except (AuthError, ContractError, TransportError, OSError, TimeoutError) as exc:
+        print(json.dumps({"error": type(exc).__name__, "message": str(exc)}))
+        return 1
+    except Exception:
+        print(json.dumps({"error": "ingest_failed"}))
+        return 1
+    finally:
+        try:
+            await app.close()
+        finally:
+            shutil.rmtree(runtime_dir, ignore_errors=True)
+    print(json.dumps(summary, indent=2))
+    output_file = getattr(args, "output_file", None)
+    if output_file:
+        try:
+            _write_output_file(str(output_file), summary)
+        except ContractError as exc:
+            print(json.dumps({"error": exc.code}))
+            return 2
+    return 0
+
+
+async def _run_ingest(
+    app: BackendApp, data: bytes, mime: str, user: str, ai_mode: str
+) -> dict[str, Any]:
+    source = f"frontend:{user}"
+    token = app.tokens.get(source)
+    if not token:
+        raise AuthError(code="auth_failed", message="unknown user")
+    timeout = AI_EDGE_TIMEOUT if ai_mode == "opencode" else MOCK_TIMEOUT
+    client = make_client(app.runtime_dir, target="b4", source=source, token=token, timeout=timeout)
+    original_ref = app.blob.put(data, mime)
+    request = new_envelope(
+        source=source,
+        target="b4",
+        action="ingest",
+        data_kind=request_kind("ingest"),
+        payload={"bytesRef": original_ref, "purpose": "translate"},
+        user_id=user,
+    )
+    reply = await client.call(request, expect_source="b4")
+    bundle = reply.payload.get("bundle")
+    if not isinstance(bundle, dict):
+        raise TransportError(code="translate_failed", message="translation returned no bundle")
+    mode = reply.payload.get("mode", "mock")
+    counts = resource_counts(bundle)
+    manual = is_manual_review(bundle)
+    stored: list[str] = []
+    write_error = ""
+    if not manual and bundle.get("resourceType") == "Bundle":
+        store_request = new_envelope(
+            source=source,
+            target="b4",
+            action="fhir.write",
+            data_kind=request_kind("fhir.write"),
+            payload=dict(bundle),
+            user_id=user,
+        )
+        try:
+            stored_reply = await client.call(store_request, expect_source="b4")
+            raw_stored = stored_reply.payload.get("stored", [])
+            if isinstance(raw_stored, list):
+                stored = [str(item) for item in raw_stored if isinstance(item, str)]
+        except (AuthError, ContractError, TransportError, OSError, TimeoutError) as exc:
+            write_error = type(exc).__name__
+    summary: dict[str, Any] = {
+        "sha256": digest_of(data),
+        "mode": mode if isinstance(mode, str) else "mock",
+        "resourceCounts": counts,
+        "manualReview": manual,
+        "stored": stored,
+        "storedCount": len(stored),
+        "blobLifecycle": "ephemeral-owner-cleaned",
+    }
+    if write_error:
+        summary["writeError"] = write_error
+    source_hash = reply.payload.get("sourceHash")
+    if isinstance(source_hash, str) and source_hash:
+        summary["sourceHash"] = source_hash
+    return summary
+
+
+def digest_of(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
