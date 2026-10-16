@@ -10,5 +10,10 @@ build/
 *.egg-info/
 .env
 iris.env
+auth.env
+*.authkey
+*.auth.db
+/auth_keys/
+/auth_data/
 *.sock
 /runtime/
