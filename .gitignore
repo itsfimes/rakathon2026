@@ -1,0 +1,16 @@
+.slim/deepwork/
+# Impeccable ephemeral review artifacts (design.json and surfaces stay tracked)
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/questions/
+.impeccable/decision-payload.json
+
+# Isolated frontend package: generated artifacts and local configuration
+app/node_modules/
+app/dist/
+app/dist-mock/
+app/.vite/
+app/coverage/
+app/.env
+app/.env.*
+!app/.env.example

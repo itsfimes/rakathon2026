@@ -1,0 +1,9 @@
+/* Theme overrides. This layer wins over tokens/base/components/layout.
+   Re-declare any variable from tokens.css here to customise the whole app, e.g.:
+
+   @layer theme {
+     :root { --c-accent: #0B6E4F; --radius: 2px; --font: "Your Sans", system-ui, sans-serif; }
+   }
+
+   Leave empty to keep the accepted baseline. */
+@layer theme {}

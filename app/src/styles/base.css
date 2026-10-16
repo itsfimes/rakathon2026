@@ -1,0 +1,30 @@
+/* Layer 2 — base: element defaults and browser surfaces. */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--c-page);
+    color: var(--c-ink);
+    font: var(--fw-regular) var(--fs-md) / var(--lh-body) var(--font);
+    font-variant-numeric: tabular-nums;
+  }
+  h1, h2, h3, h4, p, ul, ol, dl, dd, figure, blockquote, fieldset { margin: 0; }
+  ul, ol, fieldset { padding: 0; }
+  fieldset { border: 0; min-width: 0; }
+  p, li, dd, blockquote { text-wrap: var(--wrap-prose); }
+  h1, h2, h3, h4 { line-height: var(--lh-tight); font-weight: var(--fw-bold); text-wrap: balance; }
+  ::selection { background: var(--c-accent-soft); color: var(--c-ink); }
+  a { color: var(--c-accent); text-underline-offset: var(--underline-offset); }
+  a:hover { color: var(--c-accent-hover); }
+
+  /* Focus: outline survives forced-colors mode */
+  :focus-visible { outline: var(--focus-width) solid var(--c-focus); outline-offset: var(--focus-offset); }
+  [tabindex="-1"]:focus { outline: none; }
+
+  [hidden] { display: none !important; }
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+}

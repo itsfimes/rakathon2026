@@ -1,0 +1,121 @@
+/* Clinical record surfaces: case header, section links, facts, sources, MDT preparation, patient record.
+   Same tokens as every other primitive: 1px borders, 4px corners, one blue accent, no motion beyond colour. */
+@layer components {
+  /* Case header: compact identity once per case page. */
+  .case-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-5); padding: var(--s-3) var(--s-4); margin-bottom: var(--s-4);
+    background: var(--c-surface); border: var(--border) solid var(--c-line); border-radius: var(--radius); font-size: var(--fs-sm); }
+  .case-header__who { display: flex; align-items: center; gap: var(--s-2); font-size: var(--fs-md); font-weight: var(--fw-bold); }
+  .case-header__item { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--c-ink-muted); }
+  .context-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); margin-bottom: var(--s-4); font-size: var(--fs-sm); color: var(--c-ink-muted); }
+
+  /* Section links: real links in a wrapping grid; current page filled, like the role switch. */
+  .section-nav { margin-bottom: var(--s-4); }
+  .section-nav ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0; list-style: none; padding: 0; margin: 0;
+    border: var(--border) solid var(--c-line-strong); border-radius: var(--radius); overflow: hidden; background: var(--c-surface); }
+  .section-nav li + li { border-left: var(--border) solid var(--c-line-strong); }
+  .section-nav__link { display: flex; align-items: center; justify-content: center; gap: var(--s-2); min-height: var(--target-min); height: 100%; padding: var(--s-2) var(--s-3);
+    font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--c-ink); text-decoration: none; text-align: center; transition: background-color var(--t-fast); }
+  .section-nav__link:hover { background: var(--c-surface-sunken); color: var(--c-ink); }
+  .section-nav__link[aria-current="page"] { background: var(--c-accent); color: var(--c-accent-ink); }
+  .section-nav__link:focus-visible { outline: var(--focus-width) solid var(--c-focus); outline-offset: var(--focus-offset-inset); }
+  .section-nav__link[aria-current="page"]:focus-visible { outline-color: var(--c-accent-ink); }
+
+  /* Record layout */
+  .record { display: grid; gap: var(--s-4); }
+  .record__pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: var(--s-4); align-items: start; }
+  .record-heading { font-size: var(--type-panel-title); margin-top: var(--s-3); }
+  .record-group { display: grid; gap: var(--s-2); }
+  .record-group + .record-group, .conflict + .record-group { margin-top: var(--s-4); }
+  .record-group__title { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--c-ink-muted); }
+
+  /* One fact: title + status words, value, one quiet time line, sources on demand. */
+  .fact-list { display: grid; gap: 0; }
+  .fact { display: grid; gap: var(--s-2); padding: var(--s-3) 0; border-bottom: var(--border) solid var(--c-line-soft); min-width: 0; }
+  .fact:first-child { padding-top: 0; }
+  .fact:last-child { border-bottom: 0; padding-bottom: 0; }
+  .fact__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-2) var(--s-3); }
+  .fact__title { font-size: var(--fs-md); font-weight: var(--fw-bold); line-height: var(--lh-tight); max-width: var(--measure); text-wrap: pretty; }
+  .fact__kind { font-weight: var(--fw-medium); color: var(--c-ink-muted); }
+  .fact__kind::after { content: " · "; }
+  .fact__tags { display: inline-flex; flex-wrap: wrap; gap: var(--s-1); }
+  .fact__body { display: grid; gap: var(--s-2); }
+  .fact__meta { color: var(--c-ink-muted); font-size: var(--fs-xs); }
+  /* Sources stay a quiet, content-width control until opened; never a full-width box on every fact. */
+  .fact > .disclosure, .table td .disclosure, .req-list .disclosure { justify-self: start; max-width: 100%; }
+  .fact > .disclosure:not([open]), .table td .disclosure:not([open]), .req-list .disclosure:not([open]) { border-color: transparent; }
+  .fact > .disclosure:not([open]) > summary, .table td .disclosure:not([open]) > summary, .req-list .disclosure:not([open]) > summary { padding-inline: 0; }
+  .fact > .disclosure[open], .req-list .disclosure[open] { justify-self: stretch; }
+  .report-text { display: grid; gap: var(--s-1); }
+
+  .fields { display: grid; grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr); gap: var(--s-1) var(--s-4); font-size: var(--fs-sm); max-width: 60rem; }
+  .fields > div { display: contents; }
+  .fields dt { color: var(--c-ink-muted); }
+  .fields dd { margin: 0; overflow-wrap: anywhere; }
+  .plain-list { display: grid; gap: var(--s-1); padding-left: var(--s-4); margin: 0; }
+  .report-text h5 { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--c-ink-muted); margin: 0; }
+  .report-text p { margin: 0; }
+  .report-text p { max-width: var(--measure); }
+  .num { font-variant-numeric: tabular-nums; }
+  .cell-strong { display: block; font-weight: var(--fw-bold); }
+  .table .sub--ink { color: var(--c-ink); }
+  .culture { margin-top: var(--s-2); font-size: var(--fs-sm); }
+  .table td .disclosure { margin-top: var(--s-2); }
+
+  /* Source inspection */
+  .source-list { display: grid; gap: var(--s-3); list-style: none; padding: 0; margin: var(--s-2) 0 0; }
+  .source-list > li { padding: var(--s-2) var(--s-3); border: var(--border) solid var(--c-line-soft); border-radius: var(--radius); background: var(--c-surface-sunken); }
+  .source-list__label { font-weight: var(--fw-medium); margin-bottom: var(--s-1); }
+
+  /* Conflict: both claims side by side, nothing chosen. */
+  .conflict { display: grid; gap: var(--s-3); }
+  .conflict__pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--s-3); }
+  .conflict__pair > .fact { padding: var(--s-3); border: var(--border) solid var(--c-danger-line); border-radius: var(--radius); }
+
+  /* Overview attention list */
+  .attention { display: grid; list-style: none; padding: 0; margin: 0; }
+  .attention > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-1) var(--s-3); align-items: start; padding: var(--s-2) 0; border-bottom: var(--border) solid var(--c-line-soft); }
+  .attention > li:last-child { border-bottom: 0; }
+  .attention__what { display: grid; font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+  .attention__domain { font-size: var(--fs-xs); font-weight: var(--fw-regular); color: var(--c-ink-muted); }
+  .attention .fact__tags { grid-column: 1; }
+  .attention__link { grid-column: 2; grid-row: 1; font-size: var(--fs-sm); white-space: nowrap; }
+
+  /* Wishes and MDT requirements */
+  .wish-list, .req-list { display: grid; gap: 0; list-style: none; padding: 0; margin: 0; }
+  .wish { display: grid; gap: var(--s-2); justify-items: start; padding: var(--s-3) 0; border-bottom: var(--border) solid var(--c-line-soft); }
+  .wish:last-child { border-bottom: 0; }
+  .req-list { margin-top: var(--s-3); }
+  .req-list > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-2) var(--s-3); align-items: center; padding: var(--s-2) 0; border-bottom: var(--border) solid var(--c-line-soft); }
+  .req-list > li:last-child { border-bottom: 0; }
+  .req-list .disclosure { grid-column: 1 / -1; }
+  .legacy-note { margin-bottom: var(--s-4); }
+  .req-list__name { font-weight: var(--fw-medium); }
+
+  /* Patient record: two columns on wide screens, one column on phones. */
+  .patient-record { display: grid; gap: var(--s-4); font-size: var(--type-patient); }
+  .patient-record__main, .patient-record__side { display: grid; gap: var(--s-4); align-content: start; min-width: 0; }
+  .patient-record .fact__title { font-size: var(--fs-md); }
+  .patient-record .fields { font-size: var(--fs-md); }
+  .patient-record .fact__meta { font-size: var(--fs-sm); }
+  .record-link .panel__body { display: grid; gap: var(--s-2); justify-items: start; }
+  .record-link .event__title { display: flex; align-items: center; gap: var(--s-2); }
+
+  @media (min-width: 1101px) {
+    .patient-record { grid-template-columns: minmax(0, 1.4fr) minmax(var(--split-side-min), 1fr); align-items: start; }
+    .patient-record > .notice { grid-column: 1 / -1; }
+  }
+  @media (max-width: 760px) {
+    .section-nav ul { grid-template-columns: 1fr 1fr; }
+    .section-nav li + li { border-left: 0; }
+    .section-nav li:nth-child(even) { border-left: var(--border) solid var(--c-line-strong); }
+    .section-nav li:nth-child(n + 3) { border-top: var(--border) solid var(--c-line-strong); }
+    .section-nav__link { min-height: var(--target-touch); }
+    .fields { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .fields dd { margin-bottom: var(--s-2); }
+    .attention > li { grid-template-columns: minmax(0, 1fr); }
+    .attention__link { grid-column: 1; grid-row: auto; }
+  }
+  @media (forced-colors: active) {
+    .section-nav__link[aria-current="page"] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+  }
+}
