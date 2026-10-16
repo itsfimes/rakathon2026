@@ -108,6 +108,8 @@ class B4Router:
             raise AuthError(code="auth_failed", message="user identity mismatch")
         user_id = expected
         action = request.action
+        if expected == "web-assistant" and action != ROUTE_AI:
+            raise AuthError(code="auth_failed", message="assistant action is not permitted")
         if action not in USER_ACTIONS:
             raise ContractError(code="bad_action", message="unsupported action")
         if action == "health":

@@ -2,10 +2,10 @@ import { ASSISTANT_LIMITS } from './contracts'
 import type { AssistantContext, AssistantField, AssistantFieldKey, AssistantReply, AssistantRequest, AssistantRole, AssistantSourceId } from './contracts'
 
 const fields: Readonly<Record<AssistantRole, Partial<Record<AssistantFieldKey, AssistantSourceId>>>> = {
-  koordinator: { 'task-title': 'task', 'task-organization': 'task', 'task-due': 'task', 'task-acknowledgement': 'task', 'document-state': 'documents' },
-  pacient: { instruction: 'patient-instruction', 'event-title': 'patient-event', 'event-date': 'patient-event', 'event-attendance': 'patient-event', 'event-followup': 'patient-event', contact: 'patient-contact' },
-  lekar: { 'referral-state': 'referral', obligations: 'obligations' },
-  mdt: { 'document-metadata': 'document-metadata' },
+  koordinator: { 'task-title': 'task', 'task-organization': 'task', 'task-due': 'task', 'task-acknowledgement': 'task', 'document-state': 'documents', 'record.coverage': 'record-coverage' },
+  pacient: { instruction: 'patient-instruction', 'event-title': 'patient-event', 'event-date': 'patient-event', 'event-attendance': 'patient-event', 'event-followup': 'patient-event', contact: 'patient-contact', 'record.coverage': 'record-coverage', 'record.reportsSummary': 'record-report-metadata' },
+  lekar: { 'referral-state': 'referral', obligations: 'obligations', 'record.coverage': 'record-coverage', 'record.reportsSummary': 'record-report-metadata' },
+  mdt: { 'document-metadata': 'document-metadata', 'record.coverage': 'record-coverage', 'record.reportsSummary': 'record-report-metadata' },
 }
 
 export function isAssistantRole(value: string): value is AssistantRole {
@@ -27,9 +27,10 @@ export function validContext(context: AssistantContext): boolean {
 }
 
 export function validRequest(request: AssistantRequest): boolean {
-  return !!request && exactKeys(request, ['role', 'text', 'context']) && isAssistantRole(request.role)
+  return !!request && exactKeys(request, ['role', 'text', 'context', 'binding']) && isAssistantRole(request.role)
     && typeof request.text === 'string' && !!request.text.trim() && request.text.length <= ASSISTANT_LIMITS.input
     && (request.context === undefined || (!!request.context && request.context.role === request.role && validContext(request.context)))
+    && (request.binding === undefined || (!!request.context && !!request.binding && exactKeys(request.binding, ['caseId', 'token']) && typeof request.binding.caseId === 'string' && typeof request.binding.token === 'string' && /^[A-Za-z0-9.-]{1,64}$/.test(request.binding.caseId) && /^[0-9]{1,12}\.[a-f0-9]{64}$/.test(request.binding.token)))
 }
 
 export function validReply(reply: AssistantReply, request: AssistantRequest, provenance: 'scripted' | 'server'): boolean {

@@ -1,5 +1,6 @@
-import type { Assistant } from '../assistant/contracts'
+import type { Assistant, AssistantPreview, AssistantRole } from '../assistant/contracts'
 import type { ClinicalRecord } from './clinical'
+import type { CollectionCoverage } from './coverage'
 import type { MdtPreparation } from './mdtPreparation'
 import type { PatientRecord } from './patientRecord'
 
@@ -8,6 +9,7 @@ export type ErrorCode = 'configuration-error' | 'backend-unconfigured' | 'unavai
 export interface DataError {
   readonly code: ErrorCode
   readonly message: string
+  readonly coverage?: CollectionCoverage
 }
 export type Result<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: DataError }
 export const success = <T>(value: T): Result<T> => ({ ok: true, value })
@@ -45,6 +47,7 @@ export interface Workspace {
   readonly defaultCaseId: string | null
   readonly queue: readonly QueueItem[]
   readonly metadata: { readonly provenance: string; readonly origin?: 'backend' }
+  readonly collectionCoverage?: CollectionCoverage
 }
 export interface Identity {
   readonly caseId: string
@@ -134,6 +137,7 @@ export interface MdtView {
   readonly finalization: { readonly state: 'blocked'; readonly reason: string }
 }
 export interface CaseDetail {
+  readonly assistantPreview?: Readonly<Partial<Record<AssistantRole, AssistantPreview>>>
   readonly clinical?: ClinicalRecord
   readonly identity: Identity
   readonly phases: readonly Phase[]

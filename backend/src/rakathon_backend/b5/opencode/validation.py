@@ -5,7 +5,22 @@ import re
 from typing import Any
 from urllib.parse import urlsplit
 
+from rakathon_backend.common.ai_limits import (
+    AI_EDGE_TIMEOUT,
+    AI_FRONTEND_TIMEOUT,
+    AI_GATEWAY_TIMEOUT,
+    AI_IPC_TIMEOUT,
+    AI_REQUEST_TIMEOUT,
+)
 from rakathon_backend.common.fhir import is_manual_review, validate_bundle
+
+__all__ = [
+    "AI_EDGE_TIMEOUT",
+    "AI_FRONTEND_TIMEOUT",
+    "AI_GATEWAY_TIMEOUT",
+    "AI_IPC_TIMEOUT",
+    "AI_REQUEST_TIMEOUT",
+]
 
 EXPECTED_VERSION = "2.0.31"
 API_USERNAME = "opencode"
@@ -15,11 +30,6 @@ MAX_PROMPT_CHARS = 65536
 VERSION_PROBE_TIMEOUT = 10.0
 STARTUP_TIMEOUT = 30.0
 REQUEST_TIMEOUT = 180.0
-AI_REQUEST_TIMEOUT = 180.0
-AI_GATEWAY_TIMEOUT = 185.0
-AI_IPC_TIMEOUT = 190.0
-AI_FRONTEND_TIMEOUT = 200.0
-AI_EDGE_TIMEOUT = 205.0
 CONNECT_TIMEOUT = 5.0
 HEALTH_POLL_INTERVAL = 0.2
 PROCESS_KILL_TIMEOUT = 5.0

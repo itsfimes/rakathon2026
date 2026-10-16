@@ -83,7 +83,7 @@ export function PatientRecordPage({ record }: { readonly record: PatientRecord }
   const differs = record.medications.some(entry => entry.conflict === 'unresolved')
   return (
     <div className="patient-record">
-      <CoverageNotice coverage={record.coverage} />
+      <CoverageNotice coverage={record.coverage} detail={record.collectionCoverage} />
       <Notice tone="info" icon="info" title="Údaje tak, jak jsou zapsané ve zprávách" role="note">
         Aplikace hodnoty nevysvětluje ani nehodnotí. Co znamenají pro vás, s vámi probere váš lékař.
         <ul className="plain-list">{record.limitations.map(item => <li key={item}>{item}</li>)}</ul>

@@ -8,6 +8,7 @@ export const reference: Decoder<string> = value => /^(Patient|Observation|Diagno
 export const literal = <T extends string | number | boolean>(expected: T): Decoder<T> => value => value === expected ? expected : invalid()
 export const nullable = <T>(decode: Decoder<T>): Decoder<T | null> => value => value === null ? null : decode(value)
 export const array = <T>(decode: Decoder<T>): Decoder<T[]> => value => Array.isArray(value) && value.length <= 50 ? value.map(decode) : invalid()
+export const collection = <T>(decode: Decoder<T>): Decoder<T[]> => value => Array.isArray(value) && value.length <= 500 ? value.map(decode) : invalid()
 export function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return invalid()
   return value as Record<string, unknown>

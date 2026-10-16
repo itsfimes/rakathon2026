@@ -10,13 +10,14 @@ export function projectWorkspace(dto: WorkspaceDTO): Workspace {
     age: ageAt(p.birthDate, dto.fetchedAt), diagnosis: null, priority: null, phase: null, nextStep: null,
   }))
   return freezeClinicalSnapshot({ asOf: dto.fetchedAt, defaultCaseId: queue[0]?.caseId ?? null, queue,
+    collectionCoverage: dto.coverage,
     metadata: { provenance: 'Backend IRIS · single-user-development · čas načtení dat', origin: 'backend' },
   })
 }
 export function projectCase(dto: CaseDTO): CaseDetail {
   const clinical = projectClinical(dto)
   const record = buildPatientRecord(clinical)
-  return freezeClinicalSnapshot({ clinical,
+  return freezeClinicalSnapshot({ clinical, assistantPreview: dto.assistantPreview,
     identity: { caseId: dto.patient.id!, patientId: dto.patient.id!, patientLabel: patientLabel(dto.patient), patientAddressLabel: patientLabel(dto.patient),
       age: ageAt(dto.patient.birthDate, dto.fetchedAt), diagnosis: null, referrer: null, referredAt: null },
     phases: [], nextStep: null, priorityExplanation: null, documents: [],

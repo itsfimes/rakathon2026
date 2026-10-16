@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import type { Session } from '../data/contracts'
 import type { ViewId } from '../lib/roles'
 import { ASSISTANT_LIMITS } from './contracts'
-import type { AssistantContext, AssistantReply, AssistantRequest } from './contracts'
+import type { AssistantBinding, AssistantContext, AssistantReply, AssistantRequest } from './contracts'
 import { isAssistantRole, validContext, validReply, validRequest } from './validation'
 
 export interface AssistantOptions {
@@ -16,6 +16,7 @@ export interface AssistantOptions {
   readonly open: boolean
   readonly contextFresh: boolean
   readonly context: AssistantContext | null
+  readonly binding?: AssistantBinding | undefined
 }
 export type AssistantMessage = { readonly kind: 'user'; readonly text: string } | { readonly kind: 'assistant'; readonly reply: AssistantReply }
 interface State {
@@ -29,7 +30,7 @@ interface State {
 
 const empty = (scope: AssistantOptions): State => ({ scope, input: '', messages: [], contextSelected: false, pending: false, error: null })
 const sameScope = (a: AssistantOptions, b: AssistantOptions) => a.session === b.session && a.view === b.view
-  && a.caseId === b.caseId && a.version === b.version && a.resetKey === b.resetKey && a.scopeKey === b.scopeKey && a.open === b.open && a.contextFresh === b.contextFresh
+  && a.caseId === b.caseId && a.version === b.version && a.resetKey === b.resetKey && a.scopeKey === b.scopeKey && a.open === b.open && a.contextFresh === b.contextFresh && a.binding?.token === b.binding?.token
 
 export const ASSISTANT_FAILURE_MESSAGE = 'Odpověď není k dispozici. Zkuste požadavek znovu.'
 export const ASSISTANT_UNAVAILABLE_MESSAGE = 'Asistent není připojen. Žádný požadavek nebyl odeslán.'
@@ -44,11 +45,11 @@ export function useAssistant(options: AssistantOptions) {
     setState(state)
   }
   const active = useRef<AbortController | null>(null)
-  const { session, view, caseId, version, resetKey, scopeKey, open, contextFresh, context } = options
+  const { session, view, caseId, version, resetKey, scopeKey, open, contextFresh, context, binding } = options
   useLayoutEffect(() => () => {
     active.current?.abort()
     active.current = null
-  }, [session, view, caseId, version, resetKey, scopeKey, open, contextFresh])
+  }, [session, view, caseId, version, resetKey, scopeKey, open, contextFresh, binding?.token])
 
   const contextAvailable = open && caseId !== null && contextFresh && !!context && context.role === view && validContext(context)
   const contextPreview = contextAvailable ? context : null
@@ -90,6 +91,7 @@ export function useAssistant(options: AssistantOptions) {
     const request: AssistantRequest = {
       role: view, text: text.trim(),
       ...(selectedContext ? { context: Object.freeze({ role: selectedContext.role, fields: Object.freeze(selectedContext.fields.map(field => Object.freeze({ ...field }))) }) } : {}),
+      ...(selectedContext && binding ? { binding: Object.freeze({ caseId: binding.caseId, token: binding.token }) } : {}),
     }
     if (text.length > ASSISTANT_LIMITS.input || !validRequest(request)) {
       setState(previous => ({ ...previous, error: `Zadejte dotaz o 1 až ${ASSISTANT_LIMITS.input} znacích.` }))

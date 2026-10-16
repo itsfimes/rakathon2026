@@ -50,7 +50,7 @@ async def test_transaction_success_and_mode() -> None:
         "type": "transaction",
         "entry": [
             _tx_entry("POST", "Patient/p1", "Patient", "p1"),
-            _tx_entry("PUT", "Task/t1", "Task", "t1"),
+            _tx_entry("PUT", "Patient/p2", "Patient", "p2"),
         ],
     }
     reply = await service.handle(_req(bundle))

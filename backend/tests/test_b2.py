@@ -101,7 +101,7 @@ async def test_fhir_write_read_search() -> None:
         _req(
             "admin",
             "fhir.write",
-            {"resourceType": "Patient", "id": "p5", "name": "X"},
+            {"resourceType": "Patient", "id": "p5", "name": [{"text": "X"}]},
             kind=DataKind.FHIR,
         )
     )

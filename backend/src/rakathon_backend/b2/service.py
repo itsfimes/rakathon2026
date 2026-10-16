@@ -4,6 +4,12 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
+from rakathon_backend.b2.collection import bounded_reply, collection_payload, read_collection
+from rakathon_backend.b2.ingestion import (
+    import_context_present,
+    persist_import,
+    reserved_import_metadata,
+)
 from rakathon_backend.b2.ports import Storage
 from rakathon_backend.b2.screening import endpoint as screening_endpoint
 from rakathon_backend.b2.screening.ports import ScreeningPort
@@ -43,33 +49,24 @@ def _transaction_bundle(payload: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _collect_plain_resources(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    resources: list[dict[str, Any]] = []
     if payload.get("resourceType") == "Bundle":
-        if payload.get("type") == "transaction":
-            raise ContractError(code="bad_payload", message="use transaction path")
-        for entry in payload.get("entry", []):
-            if isinstance(entry, dict) and isinstance(entry.get("resource"), dict):
-                resources.append(entry["resource"])
-        if not resources:
-            raise ContractError(code="bad_payload", message="Bundle has no resources")
-        return resources
+        raise ContractError(code="bad_payload", message="only transaction Bundles may be written")
     if "resourceType" in payload:
         return [payload]
     inner = payload.get("bundle")
     if isinstance(inner, dict):
-        if inner.get("resourceType") == "Bundle" and inner.get("type") != "transaction":
-            for entry in inner.get("entry", []):
-                if isinstance(entry, dict) and isinstance(entry.get("resource"), dict):
-                    resources.append(entry["resource"])
-            if not resources:
-                raise ContractError(code="bad_payload", message="Bundle has no resources")
-            return resources
+        if inner.get("resourceType") == "Bundle":
+            raise ContractError(
+                code="bad_payload", message="only transaction Bundles may be written"
+            )
         if "resourceType" in inner:
             return [inner]
     raise ContractError(code="bad_payload", message="fhir.write needs Bundle or resource")
 
 
 def _validate_plain_resource(resource: Any) -> tuple[str, str]:
+    if reserved_import_metadata(resource):
+        raise ContractError(code="bad_payload", message="Reserved import requires a transaction")
     return check_resource(resource)
 
 
@@ -139,6 +136,7 @@ class B2Service:
             raise ContractError(code="bad_payload", message="resourceType invalid")
         rid = payload.get("id")
         server_total: int | None = None
+        metadata: dict[str, Any] = {}
         total = 0
         if rid is not None:
             if not isinstance(rid, str) or not rid.strip():
@@ -156,27 +154,27 @@ class B2Service:
                 params[key] = value
             total_fn = getattr(self._store, "fhir_search_with_total", None)
             if callable(total_fn):
-                items, server_total = await asyncio.to_thread(total_fn, rtype, params)
+                (items, server_total), metadata = await read_collection(total_fn, rtype, params)
             else:
-                items = await asyncio.to_thread(self._store.fhir_search, rtype, params)
+                items, metadata = await read_collection(self._store.fhir_search, rtype, params)
             if params.get("_summary") == "count" and server_total is not None:
                 total = server_total
             else:
                 total = len(items)
-        bundle: dict[str, Any] = {
-            "resourceType": "Bundle",
-            "type": "searchset",
-            "total": total,
-            "entry": [{"resource": item} for item in items],
-        }
-        reply_payload: dict[str, Any] = {"bundle": bundle, "mode": self._mode}
+        reply_payload = collection_payload(items, total, self._mode)
+        if metadata:
+            reply_payload["collection"] = metadata
         if server_total is not None:
             reply_payload["serverTotal"] = server_total
-        return request.reply(
-            source=SERVICE_NAME,
-            action=request.action,
-            payload=reply_payload,
-            data_kind=DataKind.FHIR,
+        return bounded_reply(
+            request.reply(
+                source=SERVICE_NAME,
+                action=request.action,
+                payload=reply_payload,
+                data_kind=DataKind.FHIR,
+            ),
+            len(items),
+            metadata,
         )
 
     async def _screening_query(self, request: Envelope) -> Envelope:
@@ -188,8 +186,14 @@ class B2Service:
         payload = request.payload
         tx = _transaction_bundle(payload)
         if tx is not None:
+            imported = import_context_present(tx, payload)
             check_bundle(dict(tx))
-            response = await asyncio.to_thread(self._store.fhir_transaction, dict(tx))
+            if imported:
+                response = await asyncio.to_thread(
+                    persist_import, self._store, dict(tx), payload["ingestion"], self._mode
+                )
+            else:
+                response = await asyncio.to_thread(self._store.fhir_transaction, dict(tx))
             entries = response.get("entry", [])
             stored_ids: list[str] = []
             if isinstance(entries, list):
@@ -199,6 +203,8 @@ class B2Service:
                         loc = resp.get("location") if isinstance(resp, dict) else None
                         if isinstance(loc, str) and loc:
                             stored_ids.append(loc)
+            if "ingestion" in payload:
+                stored_ids = [entry["request"]["url"] for entry in tx["entry"]]
             return request.reply(
                 source=SERVICE_NAME,
                 action="fhir.write",
@@ -209,6 +215,10 @@ class B2Service:
                     "mode": self._mode,
                 },
                 data_kind=DataKind.FHIR,
+            )
+        if "ingestion" in payload:
+            raise ContractError(
+                code="bad_payload", message="Ingestion requires an atomic transaction"
             )
         resources = _collect_plain_resources(payload)
         for resource in resources:

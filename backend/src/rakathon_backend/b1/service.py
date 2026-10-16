@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from typing import Any, Protocol
 
 from rakathon_backend.b1.docx import DocxError, extract_docx_text, source_urn
+from rakathon_backend.b1.outcome import prepare_import
 from rakathon_backend.b1.translation import attach_source, is_manual_review, validate_bundle
 from rakathon_backend.common.blob_store import (
     DOCX_MIME,
@@ -87,13 +89,12 @@ class B1Service:
             return await self._handle_docx(request, ref, record.data, user_id)
         if record.content_type not in ("text/plain", "application/json"):
             raise ContractError(code="blob_unsupported_type", message="blob type is not supported")
-        bundle, mode = await self._via_b5(
-            ref, str(payload.get("purpose", "translate")), user_id, request
-        )
+        result = await self._via_b5(ref, str(payload.get("purpose", "translate")), user_id, request)
+        result = self._result(result, request, source_urn(hashlib.sha256(record.data).hexdigest()))
         return request.reply(
             source=SERVICE_NAME,
             action="ingest",
-            payload={"bundle": bundle, "mode": mode},
+            payload=result,
             data_kind=DataKind.FHIR,
         )
 
@@ -106,35 +107,61 @@ class B1Service:
             raise ContractError(code=exc.code, message=exc.message) from exc
         derived_ref = self._blob.put(extracted.text.encode("utf-8"), "text/plain")
         try:
-            bundle, mode = await self._via_b5(
+            result = await self._via_b5(
                 derived_ref, str(request.payload.get("purpose", "translate")), user_id, request
             )
         finally:
             with suppress(Exception):
                 self._blob.delete(derived_ref)
         urn = source_urn(extracted.source_sha256)
+        result = self._result(result, request, urn)
+        bundle = result.get("bundle")
         if isinstance(bundle, dict):
             bundle = attach_source(bundle, urn)
         return request.reply(
             source=SERVICE_NAME,
             action="ingest",
             payload={
+                **result,
                 "bundle": bundle,
-                "mode": mode,
                 "sourceHash": extracted.source_sha256,
                 "sourceRef": original_ref,
                 "sourceUrn": urn,
                 "resourceCounts": resource_counts(bundle),
-                "manualReview": is_manual_review(bundle),
+                "manualReview": result.get("manualReview", is_manual_review(bundle)),
             },
             data_kind=DataKind.FHIR,
         )
 
     async def _via_b5(
         self, bytes_ref: str, purpose: str, user_id: str, request: Envelope
-    ) -> tuple[dict[str, Any], str]:
+    ) -> dict[str, Any]:
         if self._translate_via_b5 is None:
             raise TransportError(code="no_b5_route", message="translation route is not configured")
+        derived_ref = None
+        patient_id = request.payload.get("patientId")
+        if patient_id is not None:
+            if (
+                not isinstance(patient_id, str)
+                or not patient_id
+                or len(patient_id) > 64
+                or any(
+                    char not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.-"
+                    for char in patient_id
+                )
+            ):
+                raise ContractError(
+                    code="bad_payload", message="Trusted patient identifier invalid"
+                )
+            record = self._blob.get(bytes_ref)
+            derived_ref = self._blob.put(
+                (
+                    f"Trusted patient identifier: {patient_id}\nSOURCE:\n"
+                    + record.data.decode("utf-8")
+                ).encode(),
+                "text/plain",
+            )
+            bytes_ref = derived_ref
         try:
             result = await self._translate_via_b5(
                 bytes_ref=bytes_ref,
@@ -146,8 +173,20 @@ class B1Service:
             raise
         except Exception as exc:
             raise TransportError(code="translate_failed", message="translation failed") from exc
+        finally:
+            if derived_ref is not None:
+                self._blob.delete(derived_ref)
         if not isinstance(result, dict) or "bundle" not in result:
             raise TransportError(code="translate_failed", message="translation returned no bundle")
+        if result.get("mode") == "direct":
+            return result
+        if any(
+            key in result
+            for key in ("manualReview", "needsReview", "writeEligible", "status", "issues")
+        ):
+            raise TransportError(
+                code="translate_failed", message="Conflicting legacy translation flags"
+            )
         bundle = result["bundle"]
         if not isinstance(bundle, dict):
             raise TransportError(code="translate_failed", message="translation bundle invalid")
@@ -156,7 +195,22 @@ class B1Service:
         _ = is_manual_review(bundle)
         raw_mode = result.get("mode", "mock")
         mode = raw_mode if isinstance(raw_mode, str) and raw_mode.strip() else "mock"
-        return (bundle, mode)
+        return {"bundle": bundle, "mode": mode}
+
+    def _result(self, result: dict[str, Any], request: Envelope, source: str) -> dict[str, Any]:
+        if result.get("mode") == "direct":
+            normalized = prepare_import(
+                {key: value for key, value in result.items() if key != "mode"},
+                source,
+                request.payload.get("patientId"),
+            )
+            return {
+                **normalized,
+                "mode": "direct",
+                "storedCount": 0,
+                "persistence": "not-requested",
+            }
+        return result
 
 
 def make_handler(service: B1Service) -> Callable[[Envelope], Awaitable[Envelope]]:

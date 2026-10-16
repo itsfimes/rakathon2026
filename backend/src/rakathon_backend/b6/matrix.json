@@ -36,13 +36,15 @@
       "ai.translate"
     ],
     "viewer": ["health", "fhir.read", "tasks.read", "reminders.read"],
-    "watchdog": ["health", "tasks.read", "reminders.read", "watchdog.tick"]
+    "watchdog": ["health", "tasks.read", "reminders.read", "watchdog.tick"],
+    "web-assistant": ["ai.complete"]
   },
   "users": {
     "admin": "admin",
     "coordinator": "coordinator",
     "clinician": "clinician",
     "viewer": "viewer",
-    "watchdog": "watchdog"
+    "watchdog": "watchdog",
+    "web-assistant": "web-assistant"
   }
 }

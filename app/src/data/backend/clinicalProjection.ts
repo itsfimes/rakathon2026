@@ -1,8 +1,10 @@
 import { freezeClinicalSnapshot } from '../clinical'
-import type { ClinicalDomains, ClinicalFact, ClinicalRecord, ClinicalSource, ClinicalTime, HistoryPayload, ImagingProcedurePayload, LabPayload, MeasurementPayload, SourceRef } from '../clinical'
+import type { ClinicalDomains, ClinicalFact, ClinicalRecord, ClinicalSource, ClinicalTime, HistoryPayload, ImagingProcedurePayload, LabPayload, MeasurementPayload, ReportMetadata, SourceRef } from '../clinical'
 import type { CaseDTO } from './dto'
 import type { Condition, Document, Observation, Patient, Report } from './schema'
 import { ageAt, clinicalTime, codes, conceptText, flag, rangeText, valueText, vitalType } from './values'
+import { invalid } from './schema'
+import type { CollectionCoverage } from '../coverage'
 
 type Resource = Patient | Condition | Observation | Report | Document
 const unknown: ClinicalTime = { kind: 'unknown' }
@@ -12,9 +14,9 @@ export function patientLabel(p: Patient): string {
 }
 const sourceRef = (r: Resource): SourceRef => ({ sourceId: `${r.resourceType}/${r.id}`, version: r.meta?.versionId || 'unknown' })
 /** Opaque local invalidation token, not an identifier or a security credential. */
-function revision(fetchedAt: string, resources: readonly Resource[]): string {
+function revision(fetchedAt: string, resources: readonly Resource[], coverage: unknown): string {
   let a = 2166136261, b = 5381
-  for (const char of JSON.stringify(resources.map(sourceRef))) {
+  for (const char of JSON.stringify({ resources, coverage })) {
     a = Math.imul(a ^ char.charCodeAt(0), 16777619)
     b = Math.imul(b, 33) ^ char.charCodeAt(0)
   }
@@ -45,27 +47,40 @@ function conditionFact(r: Condition): ClinicalFact<HistoryPayload> {
   return { ...fact(r, { category: 'condition', description: details, ...(codes(r.code).length ? { code: codes(r.code).join(' · ') } : {}), onset }, onset),
     verification: v, presence: status === 'refuted' ? 'denied' : !status || status === 'entered-in-error' ? 'unspecified' : 'present' }
 }
+/** Keeps only supplied values; empty lists and blank strings are dropped, never replaced. */
+function reportMeta(entries: { [K in keyof ReportMetadata]-?: ReportMetadata[K] | undefined }): ReportMetadata | undefined {
+  const meta = Object.fromEntries(Object.entries(entries).filter(([, value]) =>
+    value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0))) as ReportMetadata
+  return Object.keys(meta).length ? meta : undefined
+}
+const listOf = (values: readonly (string | undefined)[] | undefined) => values?.filter((value): value is string => !!value)
+const optionalTime = (value: string | undefined) => value ? clinicalTime(value) : undefined
 function reportFact(r: Report): ClinicalFact<ImagingProcedurePayload> {
   const effective = clinicalTime(r.effectiveDateTime ?? r.effectivePeriod?.start)
-  const metadata = [r.status && `Stav: ${r.status}`, r.category?.map(conceptText).filter(Boolean).join(' · '),
-    r.issued && `Vydáno: ${r.issued}`, r.effectivePeriod?.end && `Konec období: ${r.effectivePeriod.end}`,
-    r.presentedForm?.map(a => [a.title, a.contentType, a.creation].filter(Boolean).join(' · ')).join('; '),
-    r.result?.map(x => x.display).filter(Boolean).join(' · '),
-  ].filter(Boolean).join(' · ')
+  const conclusion = [r.conclusion, r.conclusionCode?.map(conceptText).filter(Boolean).join(' · ')].filter(Boolean).join(' · ')
+  const meta = reportMeta({
+    status: r.status, documentStatus: undefined, category: r.category?.map(conceptText).filter(Boolean).join(' · '),
+    items: listOf(r.result?.map(x => x.display)),
+    attachments: r.presentedForm?.map(a => ({ ...(a.title ? { title: a.title } : {}), ...(a.contentType ? { contentType: a.contentType } : {}),
+      ...(a.creation ? { created: clinicalTime(a.creation) } : {}) })).filter(a => Object.keys(a).length),
+    authors: undefined, periodEnd: optionalTime(r.effectivePeriod?.end), contentSupplied: undefined,
+  })
   return fact(r, { type: conceptText(r.code) ?? 'Zpráva z vyšetření', format: 'text-report', date: effective,
-    ...(metadata ? { findings: metadata } : {}),
-    ...([r.conclusion, r.conclusionCode?.map(conceptText).filter(Boolean).join(' · ')].filter(Boolean).length
-      ? { conclusion: [r.conclusion, r.conclusionCode?.map(conceptText).filter(Boolean).join(' · ')].filter(Boolean).join(' · ') } : {}),
+    ...(conclusion ? { conclusion } : {}), ...(meta ? { meta } : {}),
   }, effective)
 }
 function documentFact(r: Document): ClinicalFact<ImagingProcedurePayload> {
-  const titles = r.content?.map(c => [c.attachment?.title, c.attachment?.contentType, c.attachment?.creation, c.format?.display ?? c.format?.code].filter(Boolean).join(' · ')).filter(Boolean).join('; ')
-  return fact(r, { type: conceptText(r.type) || r.description || titles || 'Metadata dokumentu', format: 'text-report', date: clinicalTime(r.date),
-    findings: [r.description, titles, r.status && `Stav: ${r.status}`, r.docStatus && `Stav dokumentu: ${r.docStatus}`,
-      r.category?.map(conceptText).filter(Boolean).join(' · '), r.author?.map(a => a.display).filter(Boolean).join(' · '),
-      r.context?.period?.start, r.context?.period?.end,
-      'Obsah přílohy nebyl zdrojem dodán.',
-    ].filter(Boolean).join(' · '),
+  const attachments = r.content?.map(c => ({ ...(c.attachment?.title ? { title: c.attachment.title } : {}),
+    ...(c.attachment?.contentType ? { contentType: c.attachment.contentType } : {}),
+    ...(c.format?.display ?? c.format?.code ? { format: (c.format?.display ?? c.format?.code)! } : {}),
+    ...(c.attachment?.creation ? { created: clinicalTime(c.attachment.creation) } : {}) })).filter(a => Object.keys(a).length)
+  const meta = reportMeta({
+    status: r.status, documentStatus: r.docStatus, category: r.category?.map(conceptText).filter(Boolean).join(' · '),
+    items: undefined, attachments, authors: listOf(r.author?.map(a => a.display)),
+    periodEnd: optionalTime(r.context?.period?.end), contentSupplied: false,
+  })
+  return fact(r, { type: conceptText(r.type) || r.description || attachments?.[0]?.title || 'Metadata dokumentu', format: 'text-report', date: clinicalTime(r.date),
+    ...(r.description ? { findings: r.description } : {}), ...(meta ? { meta } : {}),
   }, clinicalTime(r.context?.period?.start ?? r.date))
 }
 function observationFacts(r: Observation): { labs: ClinicalFact<LabPayload>[]; measurements: ClinicalFact<MeasurementPayload>[] } {
@@ -92,6 +107,7 @@ function observationFacts(r: Observation): { labs: ClinicalFact<LabPayload>[]; m
 }
 export function projectClinical(dto: CaseDTO): ClinicalRecord {
   const p = dto.patient, s = dto.sections
+  if (s.observations.items.reduce((sum, item) => sum + 1 + (item.component?.length ?? 0), 0) > 1000) invalid()
   const resources = [p, ...s.conditions.items, ...s.observations.items, ...s.diagnosticReports.items, ...s.documents.items]
   const sources: ClinicalSource[] = resources.map(r => ({ ref: sourceRef(r), label: `${r.resourceType} · ${r.id}`,
     issued: clinicalTime('issued' in r ? r.issued : 'date' in r ? r.date : undefined), locallyAvailable: unknown,
@@ -108,7 +124,11 @@ export function projectClinical(dto: CaseDTO): ClinicalRecord {
     imagingProcedures: [...s.diagnosticReports.items.map(reportFact), ...s.documents.items.map(documentFact)],
     medications: [], personalSocial: [], symptoms: [], oncologyHistology: [], supportiveCare: [], referralContinuity: [], mdtPlan: [],
   }
-  return freezeClinicalSnapshot({ revision: revision(dto.fetchedAt, resources), sources, domains,
+  const coverageOf = (section: CollectionCoverage): CollectionCoverage => ({ status: section.status, reason: section.reason, serverTotal: section.serverTotal,
+    receivedCount: section.receivedCount, encounteredCount: section.encounteredCount, pagesFetched: section.pagesFetched })
+  const collectionCoverage = { conditions: coverageOf(s.conditions), observations: coverageOf(s.observations), diagnosticReports: coverageOf(s.diagnosticReports), documents: coverageOf(s.documents) }
+  return freezeClinicalSnapshot({ revision: revision(dto.fetchedAt, resources, collectionCoverage), sources, domains,
+    collectionCoverage,
     coverage: { conditions: s.conditions.status, observations: s.observations.status, diagnosticReports: s.diagnosticReports.status, documents: s.documents.status },
   })
 }

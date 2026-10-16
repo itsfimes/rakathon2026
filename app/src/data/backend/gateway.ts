@@ -1,30 +1,12 @@
 import { failure, success } from '../contracts'
 import type { CaseDetail, Gateway, Result, Session, Workspace } from '../contracts'
-import { UnconfiguredAssistant } from './assistant'
+import { BackendAssistant, UnconfiguredAssistant } from './assistant'
 import { caseDTO, sessionDTO, workspaceDTO } from './dto'
 import { projectCase, projectWorkspace } from './projection'
+import { jsonBody } from './http'
 
 const unavailable = () => failure('unavailable', 'Backend není dostupný nebo neposkytl platná úplná data.')
 const aborted = () => failure('aborted', 'Požadavek byl zrušen.')
-async function jsonBody(response: Response): Promise<unknown> {
-  const reader = response.body?.getReader()
-  if (!reader) throw new Error('Missing response body')
-  const chunks: Uint8Array[] = []
-  let size = 0
-  try {
-    for (;;) {
-      const chunk = await reader.read()
-      if (chunk.done) break
-      size += chunk.value.byteLength
-      if (size > 1024 * 1024) { await reader.cancel(); throw new Error('Response limit') }
-      chunks.push(chunk.value)
-    }
-  } finally { reader.releaseLock() }
-  const bytes = new Uint8Array(size)
-  let offset = 0
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
-  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown
-}
 export function validApiBase(value: string | undefined): boolean { return value === '/api/v1' }
 export class BackendGateway implements Gateway {
   readonly mode = 'backend' as const
@@ -43,16 +25,18 @@ export class BackendGateway implements Gateway {
       if (!response.headers.get('content-type')?.includes('application/json')) return unavailable()
       const value = decode(await jsonBody(response))
       if (signal?.aborted) return aborted()
-      return response.ok ? success(value) : unavailable()
+      if (response.ok) return success(value)
+      const coverage = workspaceDTO(value).coverage
+      return { ok: false, error: { code: 'unavailable', message: 'Backend není dostupný nebo neposkytl platná úplná data.', coverage } }
     } catch { return signal?.aborted ? aborted() : unavailable() }
   }
   readSession(signal?: AbortSignal) { return this.read('session', sessionDTO, signal) }
   readWorkspace(signal?: AbortSignal): Promise<Result<Workspace>> {
-    return this.read('workspace', raw => {
-      const dto = workspaceDTO(raw)
-      if (dto.coverage.status !== 'complete') throw new Error('Unavailable coverage')
-      return projectWorkspace(dto)
-    }, signal)
+    return this.read('workspace', workspaceDTO, signal).then(result => {
+      if (!result.ok) return result
+      if (result.value.coverage.status !== 'complete') return { ok: false as const, error: { code: 'unavailable' as const, message: 'Backend není dostupný nebo neposkytl platná úplná data.', coverage: result.value.coverage } }
+      return success(projectWorkspace(result.value))
+    })
   }
   readCase(caseId: string, signal?: AbortSignal): Promise<Result<CaseDetail>> {
     if (signal?.aborted) return Promise.resolve(aborted())
@@ -65,5 +49,5 @@ export async function createBackendSession(signal?: AbortSignal, fetcher: typeof
   const result = await gateway.readSession(signal)
   const connected = result.ok && result.value.health.ipc === 'up' && result.value.health.database === 'up'
   return { mode: 'backend', connection: connected ? 'connected' : 'unavailable',
-    gateway: connected ? gateway : new BackendGateway(false, fetcher), assistant: new UnconfiguredAssistant() }
+    gateway: connected ? gateway : new BackendGateway(false, fetcher), assistant: connected && result.ok && result.value.assistant ? new BackendAssistant(fetcher) : new UnconfiguredAssistant() }
 }

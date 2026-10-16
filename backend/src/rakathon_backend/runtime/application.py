@@ -21,22 +21,23 @@ from rakathon_backend.b4.router import B4Router
 from rakathon_backend.b4.router import make_handler as b4_handler
 from rakathon_backend.b5.gateway import AIAdapter, B5Gateway, KillSwitch, MockAdapter
 from rakathon_backend.b5.gateway import make_handler as b5_handler
-from rakathon_backend.b5.opencode.validation import (
+from rakathon_backend.b5.safety import check_ai_kill, kill_requested
+from rakathon_backend.b6.permissions import load_matrix, make_authorize_handler, privileged_users
+from rakathon_backend.common.ai_limits import (
     AI_EDGE_TIMEOUT,
     AI_FRONTEND_TIMEOUT,
     AI_GATEWAY_TIMEOUT,
     AI_IPC_TIMEOUT,
 )
-from rakathon_backend.b6.permissions import load_matrix, make_authorize_handler, privileged_users
 from rakathon_backend.common.blob_store import BlobStore
-from rakathon_backend.common.contracts import DataKind, Health
+from rakathon_backend.common.contracts import DataKind
 from rakathon_backend.common.ipc import UnixJsonClient, UnixJsonServer
 from rakathon_backend.common.rpc import check_auth, make_client, new_envelope, socket_for
 from rakathon_backend.runtime.fixtures import complete_fixture
 
-FRONTEND_USERS = ("admin", "coordinator", "clinician", "viewer", "watchdog")
+FRONTEND_USERS = ("admin", "coordinator", "clinician", "viewer", "watchdog", "web-assistant")
 SERVICES = ("b1", "b2", "b3", "b4", "b5", "b6")
-AI_MODES = ("mock", "opencode")
+AI_MODES = ("mock", "opencode", "direct")
 MIN_WATCHDOG_INTERVAL = 0.1
 MAX_WATCHDOG_INTERVAL = 3600.0
 KILL_POLL_SECONDS = 1.0
@@ -57,7 +58,7 @@ class BackendApp:
         screening: ScreeningPort | None = None,
     ) -> None:
         if ai_mode not in AI_MODES:
-            raise ValueError("ai_mode must be mock or opencode")
+            raise ValueError("ai_mode must be mock, opencode or direct")
         if ai_mode != "mock" and ai_adapter is None:
             raise ValueError("opencode ai_mode requires an explicit adapter")
         if watchdog_interval is not None and not (
@@ -100,9 +101,14 @@ class BackendApp:
 
     def frontend_client(self, user: str) -> UnixJsonClient:
         source = f"frontend:{user}"
-        return make_client(self.runtime_dir, target="b4", source=source, token=self._token(source))
+        timeout = 85.0 if user == "web-assistant" and self.ai_mode == "direct" else 7.0
+        return make_client(
+            self.runtime_dir, target="b4", source=source, token=self._token(source), timeout=timeout
+        )
 
     async def start(self) -> None:
+        if self.ai_mode != "mock":
+            check_ai_kill(self._kill_file)
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         try:
             os.chmod(self.runtime_dir, 0o700)
@@ -110,7 +116,7 @@ class BackendApp:
             pass
         ai_backed = self.ai_mode != "mock"
         ipc_timeout = AI_IPC_TIMEOUT if ai_backed else 5.0
-        edge_timeout = AI_EDGE_TIMEOUT if ai_backed else 5.0
+        edge_timeout = AI_EDGE_TIMEOUT if ai_backed else 7.0
         registry = self.registry()
         policy = load_matrix()
         b6_handler = make_authorize_handler(
@@ -134,16 +140,17 @@ class BackendApp:
         b6_b1 = make_b6check("b1")
         b6_b4 = make_b6check("b4")
         b6_b3 = make_b6check("b3")
-
-        b2 = B2Service(
-            self.store, b6_b2, mode=self.mode, privileged_users=privileged_users(policy),
-            screening=self.screening,
-        )
-        await self._add("b2", registry, b2_handler(b2))
-
+        b2 = B2Service(self.store, b6_b2, self.mode, privileged_users(policy), self.screening)
+        await self._add("b2", registry, b2_handler(b2), timeout=7.0)
         gateway_timeout = AI_GATEWAY_TIMEOUT if ai_backed else 60.0
         gateway = B5Gateway(
-            self.blob, self._ai_adapter, b6_b5, self._switch, self.ai_mode, gateway_timeout
+            self.blob,
+            self._ai_adapter,
+            b6_b5,
+            self._switch,
+            self.ai_mode,
+            gateway_timeout,
+            kill_file=self._kill_file,
         )
         self._b5 = gateway
         await self._add("b5", registry, b5_handler(gateway), timeout=ipc_timeout)
@@ -171,8 +178,7 @@ class BackendApp:
                 correlation_id=correlation_id,
             )
             reply = await client.call(req, expect_source="b5")
-            out: dict[str, Any] = dict(reply.payload)
-            return out
+            return dict(reply.payload)
 
         b1 = B1Service(self.blob, via_b5, b6_b1)
         await self._add("b1", registry, b1_handler(b1), timeout=ipc_timeout)
@@ -183,7 +189,7 @@ class BackendApp:
 
         async def call_b2(request: Any) -> Any:
             client = make_client(
-                self.runtime_dir, target="b2", source="b4", token=self._token("b4")
+                self.runtime_dir, target="b2", source="b4", token=self._token("b4"), timeout=7.0
             )
             return await client.call(request, expect_source="b2")
 
@@ -267,12 +273,8 @@ class BackendApp:
         await self._stack.enter_async_context(_closer(server))
 
     async def _kill_watch(self) -> None:
-        while True:
+        while not kill_requested(self._kill_file):
             await asyncio.sleep(KILL_POLL_SECONDS)
-            if self._kill_file is not None and self._kill_file.exists():
-                break
-            if self.ai_mode != "mock" and os.environ.get("AI_DISABLED", "").strip() == "1":
-                break
         gateway = self._b5
         if gateway is not None:
             with suppress(Exception):
@@ -309,7 +311,6 @@ class BackendApp:
             token = self.tokens.get(src, next(iter(self.tokens.values())))
             client = UnixJsonClient(socket_for(self.runtime_dir, name), token=token, source=src)
             out[name] = (await client.ping(name)).value
-        _ = Health.HEALTHY
         return out
 
     def seed_complete_blob(self) -> str:

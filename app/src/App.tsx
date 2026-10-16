@@ -89,8 +89,10 @@ export function App({ boot }: { readonly boot: Promise<BootstrapResult> }) {
   useEffect(() => {
     if (!navigated || focusedNavigation.current === navigationId) return
     if (focus === 'restore-list' && !workspaceReady) return
-    focusedNavigation.current = navigationId
+    // Consumed only when the frame actually runs: a dependency change that cancels the frame must not
+    // swallow this navigation's focus move (it is rescheduled by the next effect run instead).
     const frame = requestAnimationFrame(() => {
+      focusedNavigation.current = navigationId
       const heading = document.getElementById(`t-${view}`)
       if (focus === 'restore-list' && restoration) {
         const row = document.getElementById(caseRowId(restoration.role, restoration.caseId))
@@ -135,7 +137,8 @@ export function App({ boot }: { readonly boot: Promise<BootstrapResult> }) {
   const preparationRevision = contextFresh ? readyDetail?.mdt.preparation?.revision ?? 'none' : 'unavailable'
   const assistantScopeKey = JSON.stringify([routeIdentity, preparationRevision])
   const assistantContext = useMemo(() => buildAssistantContext(view, readyDetail, contextFresh), [view, readyDetail, contextFresh])
-  const assistant = useAssistant({ session, view, caseId: effectiveId, version, resetKey, scopeKey: assistantScopeKey, open: assistantOpen, contextFresh, context: assistantContext })
+  const assistant = useAssistant({ session, view, caseId: effectiveId, version, resetKey, scopeKey: assistantScopeKey, open: assistantOpen, contextFresh, context: assistantContext,
+    binding: isAssistantRole(view) ? readyDetail?.assistantPreview?.[view]?.binding : undefined })
   const contextReason = !isAssistantRole(view) ? 'V tomto pohledu není žádný případ.'
     : session === null || detail.status === 'error' ? 'Data případu nejsou k dispozici.'
       : !contextFresh ? 'Data případu se načítají nebo mění; kontext lze připojit až po načtení.'

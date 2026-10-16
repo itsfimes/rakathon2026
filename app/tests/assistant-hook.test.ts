@@ -67,6 +67,21 @@ describe('explicit headless assistant state', () => {
     expect(result.current.error).toContain('Limit konverzace')
   })
 
+  it('bound server preview is sent unchanged and a replacement binding aborts stale replies', async () => {
+    const deferred = deferredAssistant()
+    const initial: AssistantOptions = { ...options(deferred.assistant), context: { role: 'pacient', fields: [{ key: 'record.coverage', source: 'record-coverage', value: 'Zprávy: načteno' }] },
+      binding: { caseId: detail.identity.caseId, token: `1000.${'a'.repeat(64)}` } }
+    const { result, rerender } = renderHook((props: AssistantOptions) => useAssistant(props), { initialProps: initial })
+    act(() => result.current.selectContext(true))
+    act(() => { void result.current.send(prompt) })
+    expect(deferred.requests[0]!.request).toEqual({ role: 'pacient', text: prompt, context: initial.context, binding: initial.binding })
+    rerender({ ...initial, binding: { ...initial.binding!, token: `1001.${'b'.repeat(64)}` } })
+    expect(deferred.requests[0]!.signal.aborted).toBe(true)
+    await act(async () => deferred.requests[0]!.resolve(reply))
+    expect(result.current.messages).toEqual([])
+    expect(result.current.contextSelected).toBe(false)
+  })
+
   it.each(['case', 'role', 'version', 'session', 'close', 'clear', 'reset', 'freshness', 'scope'] as const)('%s clears all state, aborts, and ignores transport that ignores abort', async change => {
     const deferred = deferredAssistant()
     const initial = options(deferred.assistant)

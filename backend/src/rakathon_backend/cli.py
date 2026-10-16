@@ -24,6 +24,7 @@ from rakathon_backend.runtime.screening_cmds import (
     cmd_screening_query,
     cmd_screening_validate,
 )
+from rakathon_backend.web.runtime import cmd_web_serve
 
 
 def _add_env_file_arg(parser: argparse.ArgumentParser) -> None:
@@ -43,10 +44,17 @@ def build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="serve until signal")
     serve.add_argument("--runtime-dir", default=None)
     serve.add_argument("--storage", choices=("mock", "bridge", "iris-fhir"), default="mock")
-    serve.add_argument("--ai", choices=("mock", "opencode"), default="mock")
+    serve.add_argument("--ai", choices=("mock", "opencode", "direct"), default="mock")
     serve.add_argument("--watchdog-interval", type=float, default=1.0)
     serve.add_argument("--screening-source", default=None)
     _add_env_file_arg(serve)
+    web = sub.add_parser("web-serve", help="read-only single-user development facade")
+    web.add_argument("--runtime-dir", required=True)
+    web.add_argument("--bind", default="127.0.0.1")
+    web.add_argument("--port", type=int, default=8765)
+    web.add_argument("--proxy-key-file", required=True)
+    web.add_argument("--frontend-origin", action="append", default=[])
+    _add_env_file_arg(web)
     health = sub.add_parser("health", help="check health")
     health.add_argument("--runtime-dir", default=None)
     _add_env_file_arg(health)
@@ -69,7 +77,11 @@ def build_parser() -> argparse.ArgumentParser:
     ingest = sub.add_parser("ingest-file", help="convert a local file in an ephemeral runtime")
     ingest.add_argument("--path", required=True)
     ingest.add_argument("--user", required=True)
-    ingest.add_argument("--ai", choices=("mock", "opencode"), default="mock")
+    ingest.add_argument("--ai", choices=("mock", "opencode", "direct"), default="mock")
+    ingest.add_argument("--storage", choices=("mock", "iris-fhir"), default="mock")
+    ingest.add_argument(
+        "--patient-id", default=None, help="explicit trusted source patient association"
+    )
     ingest.add_argument("--runtime-dir", default=None)
     ingest.add_argument("--output-file", default=None)
     _add_env_file_arg(ingest)
@@ -117,6 +129,8 @@ async def _async_main(argv: list[str] | None = None) -> int:
         return rejected
     if args.command == "demo":
         return await cmd_demo(short_runtime(args.runtime_dir))
+    if args.command == "web-serve":
+        return await cmd_web_serve(args)
     if args.command == "serve":
         return await cmd_serve(
             short_runtime(args.runtime_dir),

@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from rakathon_backend.common.errors import ContractError
+from rakathon_backend.common.r4 import validate_r4
 
 CLINICAL_TYPES = frozenset(
     {
@@ -83,7 +84,7 @@ def check_resource_id(resource: Any) -> tuple[str, str]:
     rid = resource.get("id")
     if not isinstance(rtype, str) or _RT_RE.fullmatch(rtype) is None or rtype not in ALLOWED_TYPES:
         raise _fail("resource needs an allowed type and id")
-    if not isinstance(rid, str) or _ID_RE.fullmatch(rid.strip()) is None:
+    if not isinstance(rid, str) or _ID_RE.fullmatch(rid) is None:
         raise _fail("resource needs an allowed type and id")
     return (rtype, rid.strip())
 
@@ -155,20 +156,19 @@ def check_resource(resource: Any) -> tuple[str, str]:
     _scan_strings(resource)
     _check_status(rtype, resource)
     _check_minimal(rtype, resource)
+    validate_r4(resource)
     return (rtype, rid)
 
 
 def _check_request(entry: dict[str, Any], rtype: str, rid: str) -> None:
     request = entry.get("request")
-    if request is None:
-        return
     if not isinstance(request, dict):
         raise _fail("transaction entry is invalid")
     method = request.get("method")
     url = request.get("url")
     if method not in ("POST", "PUT"):
         raise _fail("transaction method is unsupported")
-    if not isinstance(url, str) or _SAFE_URL_RE.fullmatch(url.strip()) is None:
+    if not isinstance(url, str) or _SAFE_URL_RE.fullmatch(url) is None:
         raise _fail("transaction url is unsafe")
     text = url.strip()
     if "://" in text or text.startswith("/") or "?" in text:
@@ -204,9 +204,12 @@ def check_bundle(bundle: Any) -> dict[str, Any]:
         issues = bundle.get("issue")
         if not isinstance(issues, list) or not issues:
             raise _fail("OperationOutcome carries no issues")
+        validate_r4(bundle)
         return dict(bundle)
     if bundle.get("resourceType") != "Bundle":
         raise _fail("bundle must be a Bundle or OperationOutcome")
+    if bundle.get("type") != "transaction":
+        raise _fail("bundle must be a transaction")
     entries = bundle.get("entry")
     if not isinstance(entries, list) or not entries:
         raise _fail("bundle carries no entries")
@@ -219,6 +222,8 @@ def check_bundle(bundle: Any) -> dict[str, Any]:
             raise _fail("bundle entry is invalid")
         resource = entry.get("resource")
         rtype, rid = check_resource(resource)
+        if rtype not in CLINICAL_TYPES:
+            raise _fail("transaction entry must be a clinical resource")
         key = (rtype, rid)
         if key in seen_ids:
             raise _fail("bundle carries duplicate resource ids")
@@ -248,6 +253,7 @@ def check_bundle(bundle: Any) -> dict[str, Any]:
             raise _fail("bundle reference is not closed")
         else:
             raise _fail("bundle reference is not closed")
+    validate_r4(bundle)
     return dict(bundle)
 
 
