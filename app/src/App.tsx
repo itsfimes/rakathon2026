@@ -40,7 +40,7 @@ type Boot =
   | { readonly status: 'session'; readonly session: Session }
 
 /** Composition root. Receives the one bootstrapped session promise (created once per page). */
-export function App({ boot }: { readonly boot: Promise<BootstrapResult> }) {
+export function App({ boot, authed }: { readonly boot: Promise<BootstrapResult>; readonly authed?: boolean }) {
   const [state, setState] = useState<Boot>({ status: 'starting' })
   useEffect(() => {
     let active = true
@@ -201,7 +201,7 @@ export function App({ boot }: { readonly boot: Promise<BootstrapResult> }) {
             : views[view]}</DetailScopeProvider>
         </section>
       </main>
-      <AboutFooter demo={session?.mode === 'mock'} open={aboutOpen} onOpenChange={setAboutOpen} />
+      <AboutFooter demo={session?.mode === 'mock'} authed={authed} open={aboutOpen} onOpenChange={setAboutOpen} />
       <AssistantDialog open={assistantOpen} onClose={closeAssistant} assistant={assistant} view={view}
         sourceLabel={session?.mode === 'backend' && session.connection ? session.connection === 'connected' ? 'Backend IRIS · vývojové připojení' : 'Backend IRIS · není dostupný' : undefined}
         mode={strip.kind} contextReason={contextReason} returnFocus={assistantTrigger} skipFocusRestore={skipFocusRestore} />

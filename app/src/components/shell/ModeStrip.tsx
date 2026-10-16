@@ -25,7 +25,7 @@ export const ModeStrip = forwardRef<HTMLDivElement, ModeStripProps>(function Mod
       </>}
       {state.kind === 'backend' && <>
         <span className="mode-strip__label"><Icon name="database" />{state.connection === 'connected' ? 'Backend IRIS · vývojové připojení' : state.connection === 'unavailable' ? 'Backend IRIS · není dostupný' : 'Backend · není nakonfigurován'}</span>
-        <span className="mode-strip__detail">{state.connection ? 'Single-user development · sdílený viewer. Volba pohledu není přihlášení.' : 'Nejsou načtena žádná data pacientů.'}</span>
+        <span className="mode-strip__detail">{state.connection ? 'Přihlášení ověřuje server. Volba pohledu je pouze zobrazení.' : 'Nejsou načtena žádná data pacientů.'}</span>
       </>}
       {state.kind === 'configuration-error' && <>
         <span className="mode-strip__label"><Icon name="alert" />Konfigurace zdroje dat je neplatná</span>

@@ -31,7 +31,7 @@ export function backendProxy(filename: string | undefined, appRoot: string): Rec
     target: 'http://127.0.0.1:8765', changeOrigin: true, xfwd: false,
     configure(proxy) {
       proxy.on('proxyReq', request => {
-        for (const name of ['Forwarded', 'X-Forwarded-Host', 'X-Original-Host']) request.removeHeader(name)
+        for (const name of ['Forwarded', 'X-Forwarded-For', 'X-Forwarded-Host', 'X-Forwarded-Proto', 'X-Forwarded-Port', 'X-Original-Host']) request.removeHeader(name)
         request.setHeader('Host', '127.0.0.1:8765')
         request.setHeader('X-Rakathon-Proxy-Key', key)
       })

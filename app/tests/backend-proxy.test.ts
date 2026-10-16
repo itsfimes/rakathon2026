@@ -27,7 +27,7 @@ describe('server-only proxy capability', () => {
     const listener = on.mock.calls[0]?.[1] as (request: { removeHeader: (name: string) => void; setHeader: (name: string, value: string) => void }) => void
     const removeHeader = vi.fn(), setHeader = vi.fn()
     listener({ removeHeader, setHeader })
-    expect(removeHeader.mock.calls.map(c => c[0])).toEqual(['Forwarded', 'X-Forwarded-Host', 'X-Original-Host'])
+    expect(removeHeader.mock.calls.map(c => c[0])).toEqual(['Forwarded', 'X-Forwarded-For', 'X-Forwarded-Host', 'X-Forwarded-Proto', 'X-Forwarded-Port', 'X-Original-Host'])
     expect(setHeader.mock.calls.map(c => c[0])).toEqual(['Host', 'X-Rakathon-Proxy-Key'])
     // Assertions expose only presence/length, never even synthetic key text on failure.
     expect(setHeader.mock.calls[1]?.[1].length === 43).toBe(true)
