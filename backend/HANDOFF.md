@@ -97,8 +97,60 @@
   runtimes removed. All five final reviews PASS after comment-only cleanup;
   46 affected tests and full mypy/Ruff rechecked; 445-test full-suite evidence remains valid.
 
-### Active
-- None.
+### Authentication completed (this isolated worktree)
+- Authentication integration is implemented in this worktree and fully
+  gated (532 pytest PASS with `-W error`, ruff check + format clean, mypy
+  `src tests scripts` clean for 156 files, compileall clean, demo clean).
+  Frontend wiring is COMPLETE per the reconciled frontend report. A sole-writer
+  security-repair lane then fixed six bounded findings (session CAS retry,
+  IRIS atomic rate/prune, proxy-key safe open, Host allowlist, authorize
+  envelope binding, inert-watchdog doc) with regression tests, followed by final
+  bounded repair: malformed usernames map to generic 401 with dummy work plus
+  rate cover before hashing, active logout propagates store outage as 503 without
+  clearing the cookie, nested test imports hoisted, and IRIS/SQLite rate state
+  moved to UNIQUE (scope, key, slot) slots safe at READ COMMITTED with
+  reservation-id compensation. All five final closure reviews PASS: comments,
+  warnings/toolchain, imports, file size, and correctness/security. The parent
+  also reran frontend `npm run check`: 363 tests, types, zero-warning lint,
+  production build, and seven-file mock-exclusion check PASS.
+
+### Phase B completed (this worktree, sole writer)
+- B7 UDS `auth.login/resolve/logout` (`b7/handler.py`) on `web:auth`-only
+  registry, proprietary kinds, closed bounded payloads, `asyncio.to_thread`
+  auth operations. Local in-process store port, no new B2 socket.
+- `web:auth` trusted propagation: B4 `web_sources` default-deny plus
+  `_handle_web` and shared `_authorize_and_route`; legacy `frontend:<user>`
+  checks preserved exactly; `web_envelope()` rejects authority fields.
+- B6 optional `RoleResolver` plus B2/B4 optional `is_privileged`; fail-closed
+  callbacks, static defaults unchanged, watchdog stays service-only.
+- HTTP edge (`web/config.py|router.py|edge.py|server.py`): login/session/
+  logout routes, proxy-key gate on all requests, exact Origin plus CSRF on
+  writes, `__Host-` vs loopback cookies, 16 KiB body cap, loopback bind only,
+  no request logging, default authenticated clinical 503, unauth 401 first.
+- Runtime `BackendApp(auth=bundle)` via `runtime/auth_bundle.py`; six-service
+  default untouched. CLI `auth-init|auth-user-add|auth-user-disable|auth-serve`
+  (`runtime/auth_cmds.py|auth_serve.py`) with 0600 secrets and no seeding.
+- New tests: `tests/test_auth_http.py` (7 live-127.0.0.1 HTTP tests),
+  `tests/test_auth_phaseb.py` (5 full-IPC tests). Full gates green.
+  Pre-existing ruff check (3 in `runtime/ingest.py`) and format
+  (`application.py`, `bridge_cmds.py`, `commands.py`) repaired mechanically.
+- Frontend login/session UI and five final reviews: COMPLETE. Pending separately:
+  the other developer's clinical read projection facade
+  (`GET /api/v1/session|workspace|cases`) and integration into the main checkout.
+
+### Connector final (this worktree, sole writer)
+- HTTP auth callbacks traverse the real B7 UDS wire via
+  `B7SocketClient(runtime_dir, tokens["web:auth"])` (`b7/client.py`,
+  `AuthenticationPort`/`AuthSessionPort`, verified proprietary replies,
+  code-based errors only). `auth-serve` still builds `AuthService` for the B7
+  backend and B6 resolver but never calls it from HTTP; missing listener or
+  wrong token is login/session/logout 503. HTTP worker drain moved to
+  `asyncio.to_thread` with bounded join before `app.close()`.
+- `make_b4_dispatch` stub removed; `B4ActionClient.call(identity, action,
+  payload)` forwards the exact `USER_ACTIONS` entry via `web_envelope`.
+- New tests `test_auth_connector.py` (5), `test_auth_connector_wire.py` (8),
+  `test_auth_connector_b4.py` (6): 532 pytest PASS (`-W error`), ruff and
+  mypy clean. All five final closure reviews PASS; frontend checks freshly PASS.
 
 ### Blocked
 - Live FHIR create/read/update verified. SQL/vector/task storage and the encrypted bridge remain unverified live.

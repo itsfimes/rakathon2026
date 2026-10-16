@@ -18,7 +18,31 @@ Run commands from `app/` (Node 26+, npm). This is independent of the immutable
 - `npm run check` — typecheck, lint, tests, ordinary build and backend artifact check.
   Run with mode unset/backend; it intentionally fails if an environment opts into mock.
 
-Entry: `src/main.tsx` renders `<App boot={bootOnce()} />`; `src/session.ts` bootstraps once per page (StrictMode-safe).
+Entry: `src/main.tsx` renders `<LoginBoundary />`, which gates the app on authentication
+in configured backend mode and renders `<App>` directly otherwise; `src/session.ts`
+bootstraps once per page (StrictMode-safe) with `resetBootCache()` so a new login
+never inherits the previous user's clinical bootstrap.
+
+## Authentication gate (configured backend only)
+
+With `VITE_DATA_MODE=backend` (or unset) **and** `VITE_BACKEND_API_BASE=/api/v1`, the
+boundary first calls `GET /api/v1/auth/session` (same-origin cookies, no clinical
+requests) and shows the Czech login form (`src/features/auth/LoginView.tsx`) while
+unauthenticated. Login posts JSON `{username, password}` with `X-Rakathon-Auth: 1`;
+logout posts with the in-memory `X-CSRF-Token` and clears local clinical state plus
+in-flight requests **before** contacting the server. The browser never sees the
+opaque session token (HttpOnly cookie) and auth secrets never touch
+`localStorage`/`sessionStorage`/URLs/logs. Failures stay generic
+(`invalid_credentials` → one shared message, `429` → retry-later, `5xx`/network →
+unavailable) with no account enumeration, no signup, no password reset and no SSO.
+
+A signed-in user gets an identity bar (`Přihlášeno: jméno.příjmení`, server role,
+`Odhlásit`) above the existing workspace. Clinical reads still return `503`
+until the server's read projection lands, shown honestly as unavailable — never a
+login loop or fake workspace. An HTTP `401` on any clinical read returns to login
+with an expiry notice; `403` keeps the session. Roles come only from the server;
+the role view switch stays presentation-only. Mock mode (`VITE_DATA_MODE=mock`)
+remains explicitly labeled demo and performs no auth requests.
 
 ## Public build-time source settings
 
@@ -83,8 +107,11 @@ Read snapshots are cloned and deeply frozen; nothing is persisted across session
 
 ## Read-only IRIS development adapter
 
-The exact v1 contract lives in `../backend/docs/web.md`. Only GET session, workspace
-and exact case reads exist. Start the facade separately on loopback port 8765, then:
+The exact auth HTTP edge contract lives in `../backend/docs/auth.md` (`HTTP edge`
+plus `CLI`). Auth login/session/logout works; authenticated clinical reads return
+`503 not_configured` until the other lane ships its read projection facade
+(`GET /api/v1/session|workspace|cases` stays pending). Start the auth edge separately
+on loopback port 8765, then:
 
 ```sh
 RAKATHON_BACKEND_PROXY_KEY_FILE="$PWD/../backend/runtime/web-proxy.key" \
@@ -99,8 +126,25 @@ Host, strips rejected forwarding headers, preserves Origin and fixes the target 
 Absent server key setting disables the proxy. Preview remains loopback-only and
 does not install a development proxy; deployment needs its own secured boundary.
 
-Any allowed LAN client shares a fixed backend viewer. Role selection is presentation,
-not authentication. Connected data is **not assumed synthetic**. Do not expose this
+Authenticated demo (explicit `demo` store, throwaway directory, never the real DB;
+exact CLI shapes live in `../backend/docs/auth.md`). Run backend commands from the
+authentication worktree with `uv run --project backend`:
+
+```sh
+uv run --project backend rakathon-backend auth-init --auth-store demo --auth-dir /tmp/opencode/rakathon-auth-demo
+uv run --project backend rakathon-backend auth-user-add --auth-store demo --auth-dir /tmp/opencode/rakathon-auth-demo --username jana.novakova --role viewer
+uv run --project backend rakathon-backend auth-serve --auth-store demo --auth-dir /tmp/opencode/rakathon-auth-demo --origin http://127.0.0.1:5173 --allow-loopback-http --bind 127.0.0.1 --port 8765 --runtime-dir /tmp/opencode/rakathon-auth-run
+RAKATHON_BACKEND_PROXY_KEY_FILE=/tmp/opencode/rakathon-auth-demo/proxy.key \
+VITE_DATA_MODE=backend VITE_BACKEND_API_BASE=/api/v1 npm run dev -- --host 127.0.0.1
+```
+
+The proxy key file is server-only (Vite dev proxy reads it, the browser never sees it).
+
+The origin must match the served address exactly (`127.0.0.1`, not a `localhost`
+alias). Passwords are read via `getpass` (never CLI args) and are never printed.
+
+Role selection is presentation, not authentication. Connected data is
+**not assumed synthetic**. Do not expose this
 development server publicly. No DB settings/credentials belong in browser variables.
 
 `src/data/backend/{schema,dto,gateway,projection,clinicalProjection,values}.ts` validate

@@ -188,3 +188,10 @@ What actually needs to be implemented. The system has 6 blocks, B1-B6, each with
         - Output, metadata, IPC 
         - Returns verdict allow/deny to B4 (B4 IN6).
 - Access/permissions module: holds the user list + role matrix. B4 queries it on every action; TODAY a MOCK matrix.json is acceptable.
+
+## B7 addendum (Phase B, worktree-only)
+- **B7 identity**: input proprietary IPC `auth.login`/`auth.resolve`/`auth.logout` on source `web:auth` only; Argon2id + AES-256-GCM profiles + HMAC blind index + HMAC CSRF; sessions 8h absolute / 15m idle; persistent per-account and global rate limits; disable and role or version change revoke immediately.
+- **E2EE requirement (local note)**: E2EE stays client-side blob ideal per team vision; otherwise TLS + RBAC + audit + minimalization, IDs-only default for AI, no PII on metadata connectors.
+- **Web edge**: loopback-bound HTTP with server-side proxy key on every request; `POST /api/v1/auth/login`, `GET /api/v1/auth/session`, `POST /api/v1/auth/logout`; `__Host-` cookie in production, separate loopback cookie only with explicit flag; exact Origin plus CSRF on writes; authenticated clinical defaults to 503 until the clinical read facade lands; unauthenticated clinical is 401 before routing.
+- **Trust chain**: browser cookie -> B7 resolve -> verified `web:auth` identity -> B4 `_handle_web` -> B6 dynamic role resolver -> B2 privileged queues. Envelope wire format unchanged. HTTP body roles are never authoritative.
+- **Connector reality (worktree-only)**: HTTP auth callbacks reach B7 only through the authenticated `web:auth` UDS wire (`B7SocketClient`), never the in-process service object; any minimal B7 socket server speaking the same wire can replace the provider. The B4 edge exposes only a typed action client forwarding the exact requested action; no clinical facade is claimed.
