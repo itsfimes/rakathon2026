@@ -1,0 +1,48 @@
+{
+  "note": "MOCK matrix for foundation only. Not production identity proof. B4 must map its own authenticated client token to a userId and never trust a caller-supplied userId.",
+  "roles": {
+    "admin": [
+      "health",
+      "ingest",
+      "fhir.read",
+      "fhir.write",
+      "screening.query",
+      "tasks.read",
+      "tasks.write",
+      "tasks.ack",
+      "vector.anonymized.search",
+      "vector.patient.search",
+      "ai.translate",
+      "ai.complete",
+      "reminders.read",
+      "watchdog.tick"
+    ],
+    "coordinator": [
+      "health",
+      "ingest",
+      "fhir.read",
+      "screening.query",
+      "tasks.read",
+      "tasks.write",
+      "tasks.ack",
+      "reminders.read"
+    ],
+    "clinician": [
+      "health",
+      "fhir.read",
+      "tasks.read",
+      "tasks.ack",
+      "vector.anonymized.search",
+      "ai.translate"
+    ],
+    "viewer": ["health", "fhir.read", "tasks.read", "reminders.read"],
+    "watchdog": ["health", "tasks.read", "reminders.read", "watchdog.tick"]
+  },
+  "users": {
+    "admin": "admin",
+    "coordinator": "coordinator",
+    "clinician": "clinician",
+    "viewer": "viewer",
+    "watchdog": "watchdog"
+  }
+}
