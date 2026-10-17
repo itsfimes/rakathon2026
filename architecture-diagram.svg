@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1660 940" width="1660" height="940" role="img" aria-labelledby="t d" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif">
+<title id="t">Backend implementation: logical modules B1–B6, storage modes and AI modes</title>
+<desc id="d">Drawn from the backend implementation, not architecture.md. B1 to B6 are logical modules inside one Python BackendApp process; each has its own authenticated Unix-socket JSON-RPC endpoint and replies return on the request connection. A CLI client calls B4 over Unix JSON-RPC. An optional dev HTTP facade, in the same process, calls B4 from loopback with a shared proxy key mapped to a fixed viewer or web-assistant role; it is dev only and has no user login. B4 sends ingest to B1, storage calls (FHIR, tasks, vector, screening) to B2, and ai.complete to B5. B1 turns DOCX or text into validated FHIR; there is no OCR or PDF support (PDF goes to manual review). B1 calls B5 with ai.translate and returns its result; it does not write to B2. Only the CLI performs a separate B4 to B2 write, in mock mode only. B1 and B5 share an in-memory BlobStore through bytesRef. B1 to B5 all authorize through B6, a packaged mock permission matrix. B3 polls B2 tasks and delivers reminders to B4, which keeps them in memory with no frontend push; B3 is off in iris-fhir mode. Storage modes are alternatives, only one active: mock (default) uses ephemeral MemoryStorage; iris-fhir (opt-in) uses a direct FHIR adapter to InterSystems IRIS FHIR REST over verified HTTPS, live verified for create, read and update, with tasks and vectors unavailable; bridge (optional) uses an encrypted Fernet client to a separate bridge process with composite storage: FHIR REST over local loopback plus native IRIS DBAPI for task SQL with ACK, an anonymized or synthetic vector store, a restricted patient vector store whose refs are hydrated through FHIR with auth, and screening SQL (a separate screening dataset, not FHIR). The bridge path, SQL, vector, tasks and screening are implemented but not verified live. InterSystems nodes are logical capabilities, not separate servers. FHIR SQL Builder is not used. An optional local screening CSV archive mount exists and is not drawn. AI modes are alternatives: mock (default, local, no egress), direct HTTP to a remote AI over HTTPS (opt-in), or a local OpenCode child process reaching a provider over HTTPS (opt-in). B5 handles permission, egress gating and the kill switch. Outbound HTTPS exists for both AI and IRIS FHIR. No external health endpoints or production auth are claimed.</desc>
+<defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#2B3440"/></marker>
+  <marker id="am" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#B42F86"/></marker>
+  <marker id="at" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#0B6E69"/></marker>
+  <marker id="av" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#7048C8"/></marker>
+  <style>
+    .e{fill:none;stroke:#2B3440;stroke-width:1.5}
+    .me{fill:none;stroke:#B42F86;stroke-width:1.5}
+    .te{fill:none;stroke:#0B6E69;stroke-width:1.5}
+    .ve{fill:none;stroke:#7048C8;stroke-width:1.5}
+    .ip{stroke-dasharray:6 5}
+    .w{fill:none;stroke:#FFFFFF;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    .n{font-size:15.5px;font-weight:650;fill:#1B2430}
+    .r{font-size:13px;fill:#5A6676}
+    .is{font-size:13px;font-weight:600;fill:#0B6E69}
+    .st{font-size:12px;font-weight:650;fill:#8A5300}
+    .l{font-size:12.5px;fill:#2B3440;paint-order:stroke;stroke:#FFFFFF;stroke-width:5px;stroke-linejoin:round}
+    .g{font-size:12px;font-weight:650;letter-spacing:0.07em;fill:#7A8594}
+  </style>
+</defs>
+<rect width="1660" height="940" fill="#FFFFFF"/>
+<text x="40" y="42" font-size="19" font-weight="650" fill="#1B2430">Backend implementation</text>
+<text x="292" y="42" font-size="14" fill="#5A6676">Logical modules · storage and AI modes are alternatives</text>
+
+<!-- core process outline -->
+<rect x="196" y="70" width="680" height="800" rx="6" fill="none" stroke="#9AA4B1" stroke-width="1.2" stroke-dasharray="5 5"/>
+<text x="212" y="858" class="g">CORE · ONE PYTHON PROCESS · UNIX JSON-RPC</text>
+<text x="1290" y="350" class="g">STORAGE MODES (ONE ACTIVE)</text>
+<text x="960" y="90" class="g">AI MODES</text>
+
+<!-- ===== EDGES ===== -->
+<!-- ingress -->
+<path d="M102 396 H272" class="e" marker-end="url(#a)"/>
+<text x="112" y="386" class="l">Unix JSON-RPC</text>
+<path d="M102 600 H232 V430 H272" class="e ip" marker-end="url(#a)"/>
+<text x="112" y="590" class="l">loopback · key</text>
+
+<!-- B4 -> B5 ai.complete -->
+<path d="M300 374 V140 H760 V188" class="me" marker-end="url(#am)"/>
+<text x="560" y="132" class="l">ai.complete</text>
+<!-- B4 -> B1 ingest -->
+<path d="M328 392 H420 V230 H488" class="e" marker-end="url(#a)"/>
+<text x="350" y="384" class="l">ingest</text>
+<!-- B1 -> B5 ai.translate -->
+<path d="M548 210 H728" class="me" marker-end="url(#am)"/>
+<text x="596" y="202" class="l">ai.translate</text>
+<!-- BlobStore links -->
+<path d="M548 238 H620 V296" class="e" stroke-dasharray="2 4"/>
+<path d="M732 238 H660 V296" class="e" stroke-dasharray="2 4"/>
+<text x="640" y="382" text-anchor="middle" class="r">BlobStore</text>
+<text x="640" y="398" text-anchor="middle" class="r">bytesRef</text>
+<!-- B4 -> B2 -->
+<path d="M328 420 H728" class="e" marker-end="url(#a)"/>
+<text x="440" y="440" class="l">FHIR · tasks · vector · screening</text>
+<!-- B3 -> B2 poll -->
+<path d="M548 600 H746 V442" class="e" marker-end="url(#a)"/>
+<text x="580" y="592" class="l">poll tasks</text>
+<!-- B3 -> B4 reminders -->
+<path d="M492 600 H314 V450" class="e" marker-end="url(#a)"/>
+<text x="340" y="592" class="l">reminders</text>
+<!-- auth spine -->
+<path d="M286 446 V720 H780 V446" class="ve"/>
+<path d="M520 720 V748" class="ve" marker-end="url(#av)"/>
+<circle cx="286" cy="720" r="0"/>
+<text x="560" y="712" class="l" fill="#5B3AA8">authorize · B1–B5</text>
+
+<!-- storage branches -->
+<path d="M760 392 V346 H968" class="e" marker-end="url(#a)"/>
+<text x="800" y="338" class="l">mock · default</text>
+<path d="M788 404 H1208" class="te" marker-end="url(#at)"/>
+<text x="900" y="396" class="l" fill="#0B5D58">iris-fhir · HTTPS · live verified</text>
+<path d="M788 430 H850 V580 H968" class="e ip" marker-end="url(#a)"/>
+<text x="864" y="572" class="l">bridge · Fernet</text>
+<!-- bridge -> FHIR REST loopback -->
+<path d="M1000 552 V428 H1208" class="te ip" marker-end="url(#at)"/>
+<text x="1030" y="448" class="l" fill="#0B5D58">loopback FHIR</text>
+<!-- bridge -> DBAPI trunk -->
+<path d="M1028 580 H1110 V840" class="te ip"/>
+<path d="M1110 580 H1208" class="te ip" marker-end="url(#at)"/>
+<path d="M1110 668 H1208" class="te ip" marker-end="url(#at)"/>
+<path d="M1110 754 H1208" class="te ip" marker-end="url(#at)"/>
+<path d="M1110 840 H1208" class="te ip" marker-end="url(#at)"/>
+<text x="1036" y="620" class="l" fill="#0B5D58">native DBAPI</text>
+
+<!-- AI branches -->
+<path d="M788 196 H1000 V112 H1208" class="me" marker-end="url(#am)"/>
+<text x="1030" y="104" class="l" fill="#8E2268">OpenCode · opt-in</text>
+<path d="M1268 112 H1490 V184" class="me ip" marker-end="url(#am)"/>
+<text x="1300" y="104" class="l" fill="#8E2268">HTTPS</text>
+<path d="M788 224 H1458" class="me ip" marker-end="url(#am)"/>
+<text x="1030" y="216" class="l" fill="#8E2268">direct · opt-in · HTTPS</text>
+
+<!-- ===== NODES ===== -->
+<!-- CLI -->
+<rect x="46" y="368" width="56" height="56" rx="10" fill="#2F6FDB"/>
+<g transform="translate(56 380)" class="w"><rect width="36" height="30" rx="3"/><path d="M7 10 L13 15 L7 20 M17 21 H27"/></g>
+<text x="74" y="448" text-anchor="middle" class="n">CLI client</text>
+<!-- Dev HTTP -->
+<rect x="46" y="572" width="56" height="56" rx="10" fill="#5470C6"/>
+<g transform="translate(56 584)" class="w"><circle cx="18" cy="16" r="14"/><path d="M4 16 H32 M18 2 C11 8 11 24 18 30 C25 24 25 8 18 2"/></g>
+<text x="74" y="652" text-anchor="middle" class="n">Dev HTTP</text>
+<text x="74" y="670" text-anchor="middle" class="st">dev only</text>
+<text x="74" y="686" text-anchor="middle" class="r">no user login</text>
+
+<!-- B4 -->
+<rect x="272" y="374" width="56" height="72" rx="10" fill="#1F4FA8"/>
+<g transform="translate(300 410)" class="w"><path d="M-15 0 H0 M0 0 L13 -12 M0 0 L13 12 M0 0 H15 M8 -13 L13 -12 L12 -7 M8 13 L13 12 L12 7 M11 -4 L15 0 L11 4"/><circle cx="-15" cy="0" r="2.5"/></g>
+<text x="350" y="478" class="n">B4 · Router</text>
+<text x="350" y="496" class="r">reminders in memory</text>
+
+<!-- B1 -->
+<rect x="492" y="182" width="56" height="56" rx="10" fill="#E2701E"/>
+<g transform="translate(502 192)" class="w"><path d="M2 0 H16 L23 7 V36 H2 Z M16 0 V7 H23 M7 16 H18 M7 23 H18 M26 27 H36 M32 23 L36 27 L32 31"/></g>
+<text x="434" y="268" class="n">B1 · Translation</text>
+<text x="434" y="286" class="r">DOCX / text → FHIR</text>
+<text x="434" y="302" class="r">no OCR · PDF manual</text>
+
+<!-- BlobStore -->
+<rect x="616" y="300" width="48" height="48" rx="9" fill="#64748B"/>
+<g transform="translate(628 312)" class="w"><rect width="24" height="24" rx="3"/><path d="M0 8 H24 M0 16 H24"/></g>
+
+<!-- B5 -->
+<rect x="732" y="182" width="56" height="56" rx="10" fill="#B42F86"/>
+<g transform="translate(742 192)" class="w"><path d="M3 36 V13 A15 15 0 0 1 33 13 V36 M11 36 V16 A7 7 0 0 1 25 16 V36 M0 36 H36"/></g>
+<text x="800" y="268" class="n">B5 · AI adapters</text>
+<text x="800" y="286" class="r">adapters + kill switch</text>
+<text x="800" y="302" class="r">mock / direct / OpenCode</text>
+
+<!-- B3 -->
+<rect x="492" y="572" width="56" height="56" rx="10" fill="#D08A00"/>
+<g transform="translate(502 582)" class="w"><circle cx="18" cy="20" r="14"/><path d="M18 11 V20 L24 24 M12 1 H24"/></g>
+<text x="520" y="652" text-anchor="middle" class="n">B3 · Watchdog</text>
+<text x="520" y="670" text-anchor="middle" class="st">off in iris-fhir</text>
+
+<!-- B2 -->
+<rect x="732" y="392" width="56" height="56" rx="10" fill="#3B4A5E"/>
+<g transform="translate(744 402)" class="w"><rect x="2" y="12" width="28" height="22" rx="3"/><path d="M9 12 V7 A7 7 0 0 1 23 7 V12"/><circle cx="16" cy="22" r="2.5"/><path d="M16 25 V29"/></g>
+<text x="768" y="478" text-anchor="end" class="n">B2 · Storage</text>
+
+<!-- B6 -->
+<rect x="492" y="752" width="56" height="56" rx="10" fill="#7048C8"/>
+<g transform="translate(506 762)" class="w"><path d="M14 0 L27 5 V16 C27 25 21 31 14 35 C7 31 1 25 1 16 V5 Z"/><path d="M8 17 L13 22 L20 13"/></g>
+<text x="564" y="776" class="n">B6 · Access</text>
+<text x="564" y="794" class="r">mock permission matrix</text>
+
+<!-- MemoryStorage -->
+<rect x="972" y="318" width="56" height="56" rx="10" fill="#7C8798"/>
+<g transform="translate(982 330)" class="w"><rect x="2" y="4" width="32" height="24" rx="3"/><path d="M8 4 V0 M16 4 V0 M24 4 V0 M8 28 V32 M16 28 V32 M24 28 V32"/></g>
+<text x="1044" y="342" class="n">MemoryStorage</text>
+<text x="1044" y="360" class="r">ephemeral</text>
+
+<!-- Bridge -->
+<rect x="972" y="552" width="56" height="56" rx="10" fill="#4F46E5"/>
+<g transform="translate(984 562)" class="w"><rect x="2" y="12" width="28" height="22" rx="3"/><path d="M9 12 V7 A7 7 0 0 1 23 7 V12 M9 23 H23"/></g>
+<text x="1000" y="684" text-anchor="middle" class="n">Encrypted bridge</text>
+<text x="1000" y="702" text-anchor="middle" class="r">separate process</text>
+<text x="1000" y="718" text-anchor="middle" class="st">optional · live unverified</text>
+
+<!-- OpenCode -->
+<rect x="1212" y="84" width="56" height="56" rx="10" fill="#9D2C7A"/>
+<g transform="translate(1222 98)" class="w"><path d="M10 4 L2 14 L10 24 M26 4 L34 14 L26 24 M21 2 L15 26"/></g>
+<text x="1240" y="164" text-anchor="middle" class="n">OpenCode</text>
+<text x="1240" y="180" text-anchor="middle" class="r">local child</text>
+
+<!-- Remote AI -->
+<rect x="1462" y="188" width="56" height="56" rx="10" fill="#7A3FB0"/>
+<g transform="translate(1468 200)" class="w"><path d="M9 30 H36 A8 8 0 0 0 35 14 A12 12 0 0 0 12 12 A9 9 0 0 0 9 30 Z"/></g>
+<text x="1490" y="268" text-anchor="middle" class="n">Remote AI</text>
+<text x="1490" y="286" text-anchor="middle" class="r">optional provider</text>
+
+<!-- IS: FHIR REST -->
+<rect x="1212" y="388" width="56" height="56" rx="10" fill="#0E8A7E"/>
+<path d="M1230 402 C1222 402 1225 415 1220 416 C1225 417 1222 430 1230 430 M1250 402 C1258 402 1255 415 1260 416 C1255 417 1258 430 1250 430" class="w"/>
+<text x="1284" y="410" class="n">IRIS FHIR REST</text>
+<text x="1284" y="428" class="is">InterSystems</text>
+
+<!-- IS: Task SQL -->
+<rect x="1212" y="552" width="56" height="56" rx="10" fill="#2E8B3E"/>
+<g transform="translate(1224 562)" class="w"><ellipse cx="16" cy="5" rx="14" ry="4.5"/><path d="M2 5 V30 C2 33 8 35 16 35 C24 35 30 33 30 30 V5 M2 17 C2 20 8 22 16 22 C24 22 30 20 30 17"/><path d="M10 27 L14 30 L22 24"/></g>
+<text x="1284" y="574" class="n">IRIS SQL · tasks + ACK</text>
+<text x="1284" y="592" class="is">InterSystems <tspan class="st">· live unverified</tspan></text>
+
+<!-- IS: Vector anonymized -->
+<rect x="1212" y="640" width="56" height="56" rx="10" fill="#0F9BA0"/>
+<g transform="translate(1222 650)" class="w"><circle cx="5" cy="30" r="3.5"/><circle cx="18" cy="5" r="3.5"/><circle cx="32" cy="22" r="3.5"/><path d="M7 27 L16 8 M21 7 L30 19 M8 29 L29 23"/></g>
+<text x="1284" y="662" class="n">IRIS Vector · anonymized</text>
+<text x="1284" y="680" class="is">InterSystems <tspan class="r">· synthetic data</tspan></text>
+
+<!-- IS: Vector restricted -->
+<rect x="1212" y="726" width="56" height="56" rx="10" fill="#0A6F7A"/>
+<g transform="translate(1222 734)" class="w"><circle cx="5" cy="28" r="3.5"/><circle cx="16" cy="5" r="3.5"/><circle cx="28" cy="18" r="3.5"/><path d="M7 25 L14 8 M19 7 L26 15 M8 27 L25 20"/><rect x="22" y="26" width="14" height="11" rx="1.5" fill="#0A6F7A"/><path d="M25 26 V23 A4 4 0 0 1 33 23 V26"/></g>
+<text x="1284" y="748" class="n">IRIS Vector · restricted</text>
+<text x="1284" y="766" class="is">InterSystems <tspan class="r">· refs via FHIR + auth</tspan></text>
+
+<!-- IS: Screening SQL -->
+<rect x="1212" y="812" width="56" height="56" rx="10" fill="#1C9A5C"/>
+<g transform="translate(1224 824)" class="w"><rect width="32" height="30" rx="2"/><path d="M0 9 H32 M0 19 H32 M11 0 V30"/></g>
+<text x="1284" y="834" class="n">IRIS SQL · screening</text>
+<text x="1284" y="852" class="is">InterSystems <tspan class="r">· separate dataset</tspan></text>
+</svg>

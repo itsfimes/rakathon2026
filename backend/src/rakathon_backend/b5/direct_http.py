@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from rakathon_backend.b5.completion_retry import MAX_ATTEMPTS, CompletionRetry
 from rakathon_backend.common.errors import ContractError, TransportError
 
 
@@ -182,30 +183,45 @@ class DirectHttpTransport:
         *,
         response_schema: dict[str, Any] | None = None,
         schema_name: str = "rakathon_ingestion",
+        retry_rate_limit: bool = False,
     ) -> str:
         if self._closed:
             raise TransportError(code="ai_closed", message="Direct AI transport is closed")
         body = self._request_body(prompt, response_schema, schema_name)
+        budget = CompletionRetry(self._config.timeout_seconds) if retry_rate_limit else None
         try:
             async with asyncio.timeout(self._config.timeout_seconds):
-                async with self._client.stream(
-                    "POST",
-                    self._endpoint,
-                    content=body,
-                    headers={"Content-Type": "application/json"},
-                ) as response:
-                    if response.status_code != 200:
-                        raise TransportError(
-                            code="ai_http_error", message="AI provider rejected the request"
-                        )
-                    if response.headers.get("content-encoding", "identity").lower() != "identity":
-                        raise _bad_output()
-                    data = bytearray()
-                    async for chunk in response.aiter_bytes(chunk_size=16_384):
-                        if len(data) + len(chunk) > self._config.max_response_bytes:
-                            raise _bad_output()
-                        data.extend(chunk)
-            return self._response_content(data)
+                for attempt in range(MAX_ATTEMPTS if budget else 1):
+                    if budget:
+                        budget.check()
+                    async with self._client.stream(
+                        "POST",
+                        self._endpoint,
+                        content=body,
+                        headers={"Content-Type": "application/json"},
+                    ) as response:
+                        if response.status_code == 429 and budget:
+                            retry_after = response.headers.get_list("Retry-After")
+                        else:
+                            if response.status_code != 200:
+                                raise TransportError(
+                                    code="ai_http_error", message="AI provider rejected the request"
+                                )
+                            if (
+                                response.headers.get("content-encoding", "identity").lower()
+                                != "identity"
+                            ):
+                                raise _bad_output()
+                            data = bytearray()
+                            async for chunk in response.aiter_bytes(chunk_size=16_384):
+                                if len(data) + len(chunk) > self._config.max_response_bytes:
+                                    raise _bad_output()
+                                data.extend(chunk)
+                            if budget:
+                                budget.check()
+                            return self._response_content(data)
+                    if budget:
+                        await budget.wait(retry_after, attempt)
         except (TimeoutError, httpx.TimeoutException):
             raise TransportError(
                 code="ai_timeout", message="AI provider request timed out"
@@ -214,6 +230,7 @@ class DirectHttpTransport:
             raise TransportError(
                 code="ai_transport_error", message="AI provider request failed"
             ) from None
+        raise AssertionError("AI attempt budget exhausted without a result")
 
     def _request_body(
         self, prompt: str, response_schema: dict[str, Any] | None, schema_name: str

@@ -1,0 +1,134 @@
+/* Layer 3 — shell and role compositions. Layout only; visuals come from primitives. */
+
+/* App bar */
+.appbar { position: sticky; top: 0; z-index: 5; background: var(--c-surface); border-bottom: 1px solid var(--c-line); }
+.appbar__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4); padding: var(--s-2) var(--s-5); }
+.brand { display: flex; align-items: center; gap: var(--s-2); font-weight: var(--fw-bold); font-size: var(--fs-md); margin-right: var(--s-2); }
+.brand .icon { color: var(--c-accent); width: 1.375rem; height: 1.375rem; }
+.demo-tag { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--c-ink-muted); display: inline-flex; gap: var(--s-1); align-items: center; }
+.roles { flex: 1 1 auto; min-width: 0; display: flex; gap: var(--s-3); align-items: center; }
+.roles__scroll { overflow-x: auto; max-width: 100%; padding: 3px; }
+.appbar__date { color: var(--c-ink-muted); font-size: var(--fs-xs); margin-left: auto; }
+
+.content { padding: var(--s-5); display: grid; gap: var(--s-7); max-width: 96rem; margin: 0 auto; }
+.view[hidden] { display: none; }
+/* Targets of skip and deep links stay clear of the sticky bar (desktop only; on mobile the bar scrolls away). */
+#obsah, .view, .view__title, .content [id] { scroll-margin-top: 4.5rem; }
+.view__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-2) var(--s-4); margin-bottom: var(--s-4); }
+.view__title { font-size: var(--fs-xl); display: flex; align-items: center; gap: var(--s-2); }
+.view__title .icon { width: 1.5rem; height: 1.5rem; color: var(--c-accent); }
+.view__lead { color: var(--c-ink-muted); font-size: var(--fs-sm); }
+
+/* Context strip: who this is about */
+.context { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); align-items: center; padding: var(--s-3) var(--s-4); background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--radius); margin-bottom: var(--s-4); font-size: var(--fs-sm); }
+.context__who { display: flex; align-items: center; gap: var(--s-2); font-size: var(--fs-md); font-weight: var(--fw-bold); }
+.context__item { display: flex; align-items: center; gap: var(--s-2); color: var(--c-ink-muted); }
+
+/* Two-column work area */
+.split { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(22rem, 1fr); gap: var(--s-4); align-items: start; }
+.stack { display: grid; gap: var(--s-4); align-content: start; min-width: 0; }
+.selected-mark { display: flex; white-space: nowrap; margin-top: var(--s-1); align-items: center; gap: var(--s-1); font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--c-accent); }
+
+/* Doctor source table */
+.quote { font-size: var(--fs-sm); }
+.quote cite { display: block; font-style: normal; color: var(--c-ink-muted); font-size: var(--fs-xs); margin-top: var(--s-1); }
+.placeholder-text { color: var(--c-ink-muted); font-style: italic; }
+
+/* Vertical timeline for referrer and journey */
+.timeline { list-style: none; position: relative; display: grid; }
+.timeline li { position: relative; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: var(--s-3); padding-bottom: var(--s-3); }
+.timeline li::before { content: ""; position: absolute; left: calc(1rem - 1px); top: 2rem; bottom: 0; width: 2px; background: var(--c-line); }
+.timeline li:last-child::before { display: none; }
+.timeline li.is-done::before { background: var(--c-success-line); }
+.node { width: 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-ink-muted); position: relative; z-index: 1; }
+.node .icon { width: 1rem; height: 1rem; stroke-width: 2.25; }
+.is-done .node { border-color: var(--c-success); color: var(--c-success); background: var(--c-success-soft); }
+.is-now .node { border-color: var(--c-accent); color: var(--c-accent-ink); background: var(--c-accent); }
+.is-later .node { border-style: dashed; }
+.timeline__text { display: grid; gap: 2px; padding-top: 0.2rem; font-size: var(--fs-sm); }
+.timeline__text b { font-weight: var(--fw-bold); }
+
+/* Completeness meter: one labelled cell per document */
+.cells { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; }
+.cells li { height: 0.6rem; border: 1px solid var(--c-line-strong); background: var(--c-surface); }
+.cells .ok { background: var(--c-success); border-color: var(--c-success); }
+.cells .unsure { background: repeating-linear-gradient(45deg, var(--c-warning-soft) 0 3px, var(--c-warning-line) 3px 6px); border-color: var(--c-warning); }
+.cells .missing { background: var(--c-danger-soft); border-color: var(--c-danger); }
+
+/* Patient: calmer, larger, graphical */
+.view--patient .patient { max-width: 44rem; display: grid; gap: var(--s-4); font-size: var(--fs-md); }
+.event { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: var(--s-4); align-items: center; padding: var(--s-4); }
+.cal { border: 1px solid var(--c-line-strong); border-radius: var(--radius); text-align: center; overflow: hidden; background: var(--c-surface); }
+.cal__month { display: block; background: var(--c-accent); color: var(--c-accent-ink); font-size: var(--fs-xs); font-weight: var(--fw-bold); padding: 2px 0; }
+.cal__day { display: block; font-size: var(--fs-2xl); font-weight: var(--fw-bold); line-height: 1.1; padding-top: var(--s-1); }
+.cal__wd { display: block; font-size: var(--fs-xs); color: var(--c-ink-muted); padding-bottom: var(--s-1); }
+.event__title { font-size: var(--fs-lg); }
+.event p { font-size: var(--fs-sm); color: var(--c-ink-muted); margin-top: var(--s-1); }
+.event .tag { margin-top: var(--s-2); }
+.view--patient .next-step__what { font-size: var(--fs-md); }
+.view--patient .timeline__text { font-size: var(--fs-md); }
+.view--patient .disclosure { font-size: var(--fs-md); }
+.view--patient .disclosure summary { min-height: var(--target-touch); }
+.helper { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: var(--s-3); align-items: start; }
+.avatar { width: 3rem; height: 3rem; border-radius: 50%; border: 1px solid var(--c-line); background: var(--c-accent-soft); color: var(--c-accent); display: grid; place-items: center; }
+.avatar .icon { width: 1.5rem; height: 1.5rem; }
+
+/* Specimen */
+.spec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: var(--s-4); align-items: start; }
+.swatches { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: var(--s-2); }
+.swatch { border: 1px solid var(--c-line); border-radius: var(--radius); overflow: hidden; font-size: var(--fs-xs); }
+.swatch__chip { height: 2.25rem; border-bottom: 1px solid var(--c-line); }
+.swatch__text { padding: var(--s-2); }
+.chip-ink { background: var(--c-ink); } .chip-muted { background: var(--c-ink-muted); } .chip-accent { background: var(--c-accent); }
+.chip-danger { background: var(--c-danger); } .chip-warning { background: var(--c-warning); } .chip-success { background: var(--c-success); }
+.type-scale { display: grid; gap: var(--s-2); }
+.ts-2xl { font-size: var(--fs-2xl); font-weight: var(--fw-bold); line-height: 1.1; }
+.ts-xl { font-size: var(--fs-xl); font-weight: var(--fw-bold); }
+.ts-lg { font-size: var(--fs-lg); font-weight: var(--fw-bold); }
+.ts-sm { font-size: var(--fs-sm); }
+.icon-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); gap: var(--s-2); font-size: var(--fs-xs); }
+.icon-list li { display: flex; gap: var(--s-2); align-items: center; }
+
+/* Footer disclaimer */
+.about { max-width: 96rem; margin: 0 auto; padding: 0 var(--s-5) var(--s-6); }
+.about .disclosure { background: var(--c-surface); }
+
+/* Responsive: structure changes, type does not scale fluidly */
+@media (max-width: 1100px) {
+  .split { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .appbar__row { padding: var(--s-2) var(--s-3); gap: var(--s-1) var(--s-3); }
+  .appbar__date { display: none; }
+  /* Mobile: the bar is not sticky, and all five roles are always visible in a 3-column grid,
+     so nothing is clipped and the current role never needs scrolling into view. */
+  .appbar { position: static; }
+  #obsah, .view, .view__title, .content [id] { scroll-margin-top: var(--s-2); }
+  .roles { flex-basis: 100%; }
+  .roles__scroll { overflow: visible; padding: 0; width: 100%; }
+  .roles .segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--c-line-strong); overflow: hidden; }
+  .roles .segmented > * + * { border-left: 0; }
+  .roles .segmented__item { background: var(--c-surface); justify-content: center; }
+  .roles .segmented__item:last-child { grid-column: span 2; }
+  .roles .segmented__item:hover { background: var(--c-surface-sunken); }
+  .roles .segmented [aria-current="page"] { background: var(--c-accent); color: var(--c-accent-ink); }
+  .segmented__item { min-height: var(--target-touch); padding: 0 var(--s-3); }
+  .content { padding: var(--s-3); gap: var(--s-6); }
+  .about { padding: 0 var(--s-3) var(--s-5); }
+  .btn { min-height: var(--target-touch); }
+  .table--stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .table--stack, .table--stack tbody, .table--stack tr, .table--stack td { display: block; }
+  .table--stack caption { display: block; width: 100%; }
+  .table--stack tr { border-bottom: 1px solid var(--c-line); padding: var(--s-2) 0; }
+  .table--stack td { border-bottom: 0; padding: var(--s-1) var(--s-3); display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: var(--s-2); justify-items: start; }
+  .table--stack td::before { content: attr(data-label); color: var(--c-ink-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium); }
+  .facts > div { grid-template-columns: var(--icon) minmax(0, 1fr); }
+  .facts dd { grid-column: 2; }
+  .event { grid-template-columns: 4.5rem minmax(0, 1fr); padding: var(--s-3); }
+}
+@media (max-width: 380px) {
+  .roles .segmented__item { padding: 0 var(--s-1); gap: var(--s-1); font-size: var(--fs-xs); }
+  .table--stack td { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .stepbar { grid-template-columns: minmax(0, 1fr); }
+  .stepbar li { border-right: 0; border-bottom: 1px solid var(--c-line); }
+}

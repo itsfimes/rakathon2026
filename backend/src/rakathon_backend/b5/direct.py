@@ -99,7 +99,7 @@ class DirectAdapter:
             prompt = data.decode("utf-8")
         except UnicodeError as exc:
             raise ContractError(code="ai_bad_input", message="Conversation must be UTF-8") from exc
-        return {"answer": await self.transport.generate(prompt)}
+        return {"answer": await self.transport.generate(prompt, retry_rate_limit=True)}
 
     async def close(self) -> None:
         await self.transport.aclose()

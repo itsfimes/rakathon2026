@@ -85,6 +85,26 @@ HTTP wait85s, browser deadline90s. Browser abort suppresses stale replies but
 does not prove IPC/provider immediate cancellation; existing B5 kill/deadline
 bounds remain active. Errors contain stable safe codes/messages only.
 
+Conversation completion alone retries HTTP429 up to three total attempts. It
+requires exactly one valid Retry-After header (nonnegative integer seconds or
+timezone-qualified HTTP-date). The response is closed before waiting. All attempts
+and waits share the configured provider request deadline (at most60s here); a
+delay that cannot fit is never shortened or retried early. Missing/malformed
+headers or exhausted attempts fail safely as internal `ai_rate_limited`, retaining
+the facade's generic503 unavailable response. Other HTTP errors, timeouts and
+ambiguous network failures are not retried; ingestion translation is unchanged.
+Waiting is cancellable and checks the operator kill guard at most every0.1s and
+again before dispatch. The existing frontend loading state remains in flight;
+there is no invented countdown or provider error-body disclosure.
+
+For an explicitly activated local deployment, an owner-only0600 ignored combined
+configuration may be stored at `backend/runtime/web-assistant.env`, merging the
+existing IRIS settings with explicit assistant settings. Pass that file to
+`web-serve --env-file runtime/web-assistant.env`; do not add it to Git or expose it
+through the frontend. Process environment still takes precedence, including
+explicit operator disablement. Authentication remains the explicitly configured
+scheme, never a fallback.
+
 Enabled case GET adds `assistantPreview` keyed by role, each with exact
 `context:{role,fields:[{key,source,value}]}` and separate
 `binding:{caseId,token}`. Context is coverage only for coordinator; other roles
