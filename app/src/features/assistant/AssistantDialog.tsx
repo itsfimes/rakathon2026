@@ -8,6 +8,7 @@ import type { ModeStripState } from '../../components/shell/ModeStrip'
 import { Icon } from '../../icons/Icon'
 import type { ViewId } from '../../lib/roles'
 import { ContextAttach, Transcript } from './AssistantParts'
+import { lockBodyScroll } from './bodyLock'
 import { provenanceText } from './labels'
 import { revealScrollTop } from './scroll'
 
@@ -74,6 +75,32 @@ export function AssistantDialog({ open, onClose, assistant, view, mode, sourceLa
       window.clearTimeout(timer)
     }
   }, [open, exiting])
+
+  const skipRef = useRef(skipFocusRestore)
+  useLayoutEffect(() => { skipRef.current = skipFocusRestore }, [skipFocusRestore])
+  useEffect(() => {
+    if (!open || !window.matchMedia) return
+    const query = window.matchMedia('(max-width: 760px)')
+    let active = true
+    let release: ReturnType<typeof lockBodyScroll> | undefined
+    const sync = () => {
+      if (!active) return
+      if (query.matches) {
+        release ??= lockBodyScroll()
+      } else {
+        release?.(!skipRef.current?.())
+        release = undefined
+      }
+    }
+    sync()
+    query.addEventListener?.('change', sync)
+    return () => {
+      active = false
+      query.removeEventListener?.('change', sync)
+      release?.(!skipRef.current?.())
+      release = undefined
+    }
+  }, [open])
 
   // Focus goes back to the trigger (or main content) whenever the dialog is closed by any route.
   function restoreFocus() {

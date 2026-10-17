@@ -24,6 +24,19 @@ function approvalHelp(reason: string | null): string {
   return 'Služba není dostupná. Zkuste to prosím později.'
 }
 
+function draftCopy(reason: string | null): readonly [string, string] {
+  if (reason === 'legacy-bundle-fallback') return ['Kandidát pochází z uloženého balíčku.', 'Surový výstup modelu se nedochoval, kandidát byl převzat z uloženého balíčku. Návrh se nedoplňuje automaticky, dopište ho ručně.']
+  if (reason === null || reason === 'legacy-draft-missing') return ['Starší záznam bez uloženého výstupu modelu.', 'Návrh se nedoplňuje automaticky, kandidáta dopište ručně.']
+  if (reason.startsWith('model-not-invoked:')) {
+    const code = reason.slice(18)
+    if (code === 'image_no_ocr' || code === 'scan_no_ocr') return ['Model soubor nečetl.', 'Tento záznam vznikl před podporou obrázků a model ho neviděl. Automaticky se nedoplňuje, soubor prosím nahrajte znovu.']
+    if (code === 'secret_missing' || code === 'secret_empty' || code === 'secret_unreadable' || code === 'secret_not_file' || code === 'secret_permissions' || code === 'secret_symlink' || code === 'azure_not_opted_in') return ['Převod modelem nebyl zapnutý.', 'Služba AI nebyla pro tento záznam zapnutá nebo nastavená, proto výstup nevznikl. Kandidáta dopište ručně.']
+    return ['Model se pro tento záznam nespustil.', 'Výstup modelu nevznikl a automaticky se nedoplňuje. Kandidáta dopište ručně.']
+  }
+  if (reason.startsWith('model-failed:')) return ['Model převod nedokončil.', 'Výstup se nedochoval a automaticky se nedoplňuje. Kandidáta dopište ručně.']
+  return ['Výstup modelu se nedochoval.', 'Důvod se nepodařilo bezpečně určit. Nic se nedoplňuje automaticky, kandidáta dopište ručně.']
+}
+
 function receiptPreview(value: unknown): string | null {
   if (value === null || value === undefined) return null
   try {
@@ -146,14 +159,21 @@ export function ReviewDialog({ capability, caseId, job, returnFocus, onClose, on
                 <div><dt>Pacient</dt><dd>{review.patientRef}</dd></div>
                 <div><dt>Revize</dt><dd>{review.revision} · stav {review.state}</dd></div>
               </dl>
+              {review.transcriptionUntrusted && (
+                <p className="notice notice--warning"><Icon name="alert" /><span>Přepis vytvořil model a nebyl nezávisle ověřen. Porovnejte údaje s originálem.</span></p>
+              )}
               {!review.modelDraftAvailable && (
-                <p className="notice"><Icon name="info" /><span><strong>Starší záznam bez uloženého výstupu modelu.</strong>{review.modelDraftReason ? ` ${review.modelDraftReason}` : ''} Návrh se nedoplňuje automaticky, kandidáta dopište ručně.</span></p>
+                <p className="notice"><Icon name="info" /><span><strong>{draftCopy(review.modelDraftReason)[0]}</strong>{` ${draftCopy(review.modelDraftReason)[1]}`}</span></p>
               )}
             </section>
             <details className="review-tech">
               <summary className="review-tech__summary">Výstup modelu (pouze ke čtení)</summary>
-              {view.modelText === null || view.modelText === '' ? (
-                <p className="meta">Výstup modelu není k dispozici. Pracujte s kandidátem níže.</p>
+              {view.modelLoading ? (
+                <p className="meta" role="status">Načítám výstup modelu…</p>
+              ) : view.modelError ? (
+                <p className="notice notice--danger" role="alert"><Icon name="alert" /><span>Výstup modelu se nepodařilo načíst: {view.modelError} S kandidátem níže můžete pracovat dál.</span></p>
+              ) : view.modelText === null || view.modelText === '' ? (
+                <p className="meta">{draftCopy(review.modelDraftReason)[0]} {draftCopy(review.modelDraftReason)[1]} Pracujte s kandidátem níže.</p>
               ) : (
                 <pre className="review-pre" tabIndex={0}>{view.modelText}</pre>
               )}

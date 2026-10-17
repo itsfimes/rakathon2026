@@ -7,6 +7,7 @@ from rakathon_backend.common.errors import ContractError
 from rakathon_backend.common.fhir import resource_counts, validate_bundle
 from rakathon_backend.converter.model_draft import is_valid_draft, read_draft_bytes
 from rakathon_backend.converter.planner import parse_recipe_strict
+from rakathon_backend.uploads.transcription_artifact import load_valid_transcription
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -54,6 +55,16 @@ def _persist_model_draft(store: Any, job_id: str, expected_sha: str, out_dir: Pa
         return
 
 
+def _persist_transcription(store: Any, job_id: str, expected_sha: str, out_dir: Path) -> None:
+    raw = load_valid_transcription(out_dir, expected_sha)
+    if raw is None:
+        return
+    try:
+        store.write_result_blob(job_id, "transcription", raw)
+    except (OSError, ContractError, ValueError, RuntimeError):
+        return
+
+
 def collect_result(
     store: UploadStore,
     cache: RecipeCache,
@@ -67,6 +78,7 @@ def collect_result(
         return
     expected_sha = str(job.get("sha256", ""))
     _persist_model_draft(store, job_id, expected_sha, out_dir)
+    _persist_transcription(store, job_id, expected_sha, out_dir)
     try:
         result_raw = (out_dir / "result.json").read_bytes()
         prov_raw = (out_dir / "provenance.json").read_bytes()

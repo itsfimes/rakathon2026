@@ -38,8 +38,14 @@ transaction Bundle> | null, "issues": [{"code": str, "message": str}],
 "literalQuote": str, "field": "/json/pointer (optional)"}]}
 
 Rules: `bundle` is null exactly when status is `manual-review`.
-Use only relative `Type/id` references (for example `Patient/p1`);
-never emit `urn:`, absolute, or `#fragment` references.
+Omit `entry.fullUrl` entirely; never emit it and never invent `urn:`
+values. An optional URI identity field is not a clinical reference.
+Each `entry` holds only a `resource` with its own explicit `id` plus
+`request` `{"method": "PUT", "url": "Type/id"}` where `url` exactly
+matches that entry's resource `resourceType` and `id`.
+Every FHIR `Reference.reference` stays a relative `Type/id`
+(for example `Patient/p1`); never emit absolute or `#fragment`
+references.
 Every clinical resource in the bundle needs at least one evidence item
 whose `literalQuote` appears on the cited source page. Each `literalQuote`
 must be at least 8 characters of verbatim source text with a `/json/pointer`

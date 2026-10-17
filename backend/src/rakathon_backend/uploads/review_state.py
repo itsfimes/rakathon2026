@@ -5,18 +5,26 @@ import json
 from typing import Any
 
 from rakathon_backend.common.errors import ContractError
-from rakathon_backend.converter.model_draft import is_valid_draft
+from rakathon_backend.converter.model_draft import (
+    MAX_MODEL_OUTPUT_BYTES,
+    MODEL_DRAFT_VERSION,
+    is_valid_draft,
+)
 from rakathon_backend.uploads.review_helpers import (
     MAX_HISTORY,
     MAX_STATE_BYTES,
     REVIEW_STATE_BLOB,
+    TRANSCRIPTION_METHOD,
     assess,
+    derive_draft_reason,
     empty_assessment,
+    provenance_has_transcription,
     rev_blob,
     text_hash,
 )
 from rakathon_backend.uploads.store import UploadStore
 from rakathon_backend.uploads.store_io import now_iso
+from rakathon_backend.uploads.transcription_artifact import is_valid_transcription_bytes
 
 
 def read_state(uploads: UploadStore, job_id: str) -> dict[str, Any] | None:
@@ -74,18 +82,50 @@ def seed_state(uploads: UploadStore, job: dict[str, Any]) -> dict[str, Any]:
     available = False
     reason: str | None = "legacy-draft-missing"
     draft_raw = uploads.read_result_blob(job_id, "model-draft")
+    has_model_raw = False
     if draft_raw is not None:
         try:
             doc: Any = json.loads(draft_raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
             doc = None
-        if is_valid_draft(doc, sha) and isinstance(doc, dict):
-            cand = doc.get("candidateText")
-            if isinstance(cand, str) and cand:
-                candidate = cand
+        if isinstance(doc, dict):
+            if is_valid_draft(doc, sha):
+                cand = doc.get("candidateText")
+                if isinstance(cand, str) and cand:
+                    candidate = cand
                 available = True
                 reason = None
-    if not candidate:
+                has_model_raw = True
+            else:
+                out = doc.get("modelOutputText")
+                model = doc.get("model")
+                if (
+                    set(doc.keys())
+                    == {
+                        "version",
+                        "sourceSha256",
+                        "modelOutputText",
+                        "candidateText",
+                        "model",
+                    }
+                    and doc.get("version") == MODEL_DRAFT_VERSION
+                    and doc.get("sourceSha256") == sha
+                    and isinstance(out, str)
+                    and bool(out)
+                    and len(out.encode("utf-8")) <= MAX_MODEL_OUTPUT_BYTES
+                    and isinstance(model, dict)
+                    and isinstance(model.get("providerId"), str)
+                    and bool(model.get("providerId"))
+                    and isinstance(model.get("model"), str)
+                    and bool(model.get("model"))
+                ):
+                    raw_cand = doc.get("candidateText")
+                    if isinstance(raw_cand, str) and raw_cand:
+                        candidate = raw_cand
+                    available = True
+                    reason = None
+                    has_model_raw = True
+    if not candidate and not has_model_raw:
         bundle_raw = uploads.read_result_blob(job_id, "bundle")
         if bundle_raw is not None:
             try:
@@ -96,6 +136,17 @@ def seed_state(uploads: UploadStore, job: dict[str, Any]) -> dict[str, Any]:
                 candidate = json.dumps(bundle, indent=2)
                 available = False
                 reason = "legacy-bundle-fallback"
+    if not candidate and reason == "legacy-draft-missing":
+        reason = derive_draft_reason(job)
+    transcription_raw = uploads.read_result_blob(job_id, "transcription")
+    provenance_raw = uploads.read_result_blob(job_id, "provenance")
+    transcription_ok = is_valid_transcription_bytes(transcription_raw, sha)
+    if transcription_ok or provenance_has_transcription(provenance_raw, sha):
+        source_method: str | None = TRANSCRIPTION_METHOD
+        transcription_untrusted = True
+    else:
+        source_method = None
+        transcription_untrusted = False
     assessed = assess(candidate, case_id) if candidate else empty_assessment(case_id, "empty_draft")
     at = now_iso()
     state: dict[str, Any] = {
@@ -108,6 +159,8 @@ def seed_state(uploads: UploadStore, job: dict[str, Any]) -> dict[str, Any]:
         "caseId": case_id,
         "modelDraftAvailable": available,
         "modelDraftReason": reason,
+        "sourceMethod": source_method,
+        "transcriptionUntrusted": transcription_untrusted,
         "updatedAt": at,
         "reviewedBy": None,
         "approvalId": None,
@@ -125,6 +178,15 @@ def public_view(state: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
     case_id = str(state.get("caseId", job.get("caseId", "")))
     text = str(state.get("candidateText", ""))
     assessed = assess(text, case_id) if text else empty_assessment(case_id, "empty_draft")
+    raw_method = state.get("sourceMethod")
+    method: str | None = TRANSCRIPTION_METHOD if raw_method == TRANSCRIPTION_METHOD else None
+    untrusted = bool(state.get("transcriptionUntrusted", False)) and method is not None
+    public_reason = state.get("modelDraftReason")
+    if (
+        not bool(state.get("modelDraftAvailable", False))
+        and public_reason == "legacy-draft-missing"
+    ):
+        public_reason = derive_draft_reason(job)
     validation: dict[str, Any] = {
         "valid": bool(assessed["valid"]),
         "issues": list(assessed["issues"]),
@@ -133,6 +195,8 @@ def public_view(state: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
         "sourceUrn": str(state.get("sourceUrn", job.get("sourceUrn", ""))),
         "sourceSha256": str(state.get("sourceSha256", job.get("sha256", ""))),
         "modelDraftAvailable": bool(state.get("modelDraftAvailable", False)),
+        "sourceMethod": method,
+        "transcriptionUntrusted": untrusted,
         "updatedAt": str(state.get("updatedAt", "")),
         "reviewedBy": state.get("reviewedBy"),
         "importReceipt": copy.deepcopy(state.get("importReceipt")),
@@ -149,7 +213,9 @@ def public_view(state: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
         "sourceSha256": str(state.get("sourceSha256", job.get("sha256", ""))),
         "caseId": case_id,
         "modelDraftAvailable": bool(state.get("modelDraftAvailable", False)),
-        "modelDraftReason": state.get("modelDraftReason"),
+        "modelDraftReason": public_reason,
+        "sourceMethod": method,
+        "transcriptionUntrusted": untrusted,
         "updatedAt": str(state.get("updatedAt", "")),
         "reviewedBy": state.get("reviewedBy"),
         "importReceipt": copy.deepcopy(state.get("importReceipt")),

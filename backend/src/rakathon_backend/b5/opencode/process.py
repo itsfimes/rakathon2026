@@ -13,6 +13,7 @@ from typing import Self
 
 import httpx
 
+from rakathon_backend.b5.opencode.file_config import build_file_config_content
 from rakathon_backend.b5.opencode.validation import (
     API_USERNAME,
     CONNECT_TIMEOUT,
@@ -112,6 +113,7 @@ class OpenCodeProcess:
         startup_timeout: float,
         api_key: str = "",
         provider_kind: str = "local",
+        file_mode: bool = False,
     ) -> None:
         self._binary = binary
         self._expected = expected_version
@@ -119,6 +121,7 @@ class OpenCodeProcess:
         self._model = model
         self._provider_base_url = provider_base_url
         self._provider_kind = provider_kind
+        self._file_mode = file_mode
         self._startup_timeout = startup_timeout
         self._api_key = api_key
         self._proc: asyncio.subprocess.Process | None = None
@@ -140,12 +143,19 @@ class OpenCodeProcess:
         if self._started:
             raise TransportError(code="ai_started", message="opencode process already started")
         await probe_version(self._binary, self._expected)
-        config_content = build_config_content(
-            self._provider_id,
-            self._model,
-            self._provider_base_url,
-            provider_kind=self._provider_kind,
-        )
+        if self._file_mode:
+            config_content = build_file_config_content(
+                self._provider_id,
+                self._model,
+                self._provider_base_url,
+            )
+        else:
+            config_content = build_config_content(
+                self._provider_id,
+                self._model,
+                self._provider_base_url,
+                provider_kind=self._provider_kind,
+            )
         password = secrets.token_urlsafe(48)
         base = Path(SCRATCH_BASE)
         base.mkdir(parents=True, exist_ok=True)

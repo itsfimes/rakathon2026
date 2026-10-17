@@ -23,6 +23,8 @@ function validationBody(valid: boolean) {
     sourceUrn: 'urn:test:1',
     sourceSha256: 'abc',
     modelDraftAvailable: true,
+    sourceMethod: null,
+    transcriptionUntrusted: false,
     updatedAt: '2026-10-16T12:00:00Z',
     reviewedBy: null,
   }
@@ -34,7 +36,7 @@ function reviewBody(revision: number, candidate: string, valid: boolean, state: 
     revision,
     state: state as UploadReview['state'],
     candidateText: candidate,
-    validation: validationBody(valid),
+    validation: validationBody(valid) as UploadReview['validation'],
     counts: { Observation: 2 },
     patientRef: `Patient/${CASE}`,
     sourceUrn: 'urn:test:1',
@@ -42,6 +44,8 @@ function reviewBody(revision: number, candidate: string, valid: boolean, state: 
     caseId: CASE,
     modelDraftAvailable: true,
     modelDraftReason: null,
+    sourceMethod: null,
+    transcriptionUntrusted: false,
     updatedAt: '2026-10-16T12:00:00Z',
     reviewedBy: null,
     importReceipt: state === 'imported' ? { stored: 2 } : null,
@@ -260,7 +264,48 @@ describe('upload review dialog', () => {
     const focus = { current: null as HTMLElement | null }
     render(<ReviewDialog capability={stubCapability(scenario)} caseId={CASE} job={jobFixture('manual-review', true)} returnFocus={focus} onClose={vi.fn()} onChanged={summary => { changed.push(summary) }} />)
     await editor()
-    expect(changed.length).toBeGreaterThan(0)
+    await waitFor(() => expect(changed.length).toBeGreaterThan(0))
     expect(changed[changed.length - 1]).toMatchObject({ revision: 0, valid: false })
+  })
+
+  it('explains image history honestly without claiming an older record', async () => {
+    const base = reviewBody(0, CANDIDATE, false, 'draft')
+    const scenario: Scenario = { current: { ...base, modelDraftAvailable: false, modelDraftReason: 'model-not-invoked:image_no_ocr' }, enabled: false, reason: 'invalid_candidate', modelText: null, draftCalls: [], approveCalls: [] }
+    openDialog(scenario)
+    await editor()
+    expect(screen.getAllByText(/Model soubor nečetl/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/nahrajte znovu/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Starší záznam/)).toBeNull()
+  })
+
+  it('keeps the genuine legacy notice for old records', async () => {
+    const base = reviewBody(0, CANDIDATE, false, 'draft')
+    const scenario: Scenario = { current: { ...base, modelDraftAvailable: false, modelDraftReason: 'legacy-draft-missing' }, enabled: false, reason: 'invalid_candidate', modelText: null, draftCalls: [], approveCalls: [] }
+    openDialog(scenario)
+    await editor()
+    expect(screen.getAllByText(/Starší záznam bez uloženého výstupu modelu/).length).toBeGreaterThan(0)
+  })
+
+  it('shows raw transcription with an unverified banner and keeps import blocked', async () => {
+    const raw = '{"transcription":{"text":"neověřený přepis"}}'
+    const base = reviewBody(0, '', false, 'draft')
+    const current: UploadReview = { ...base, sourceMethod: 'opencode-native-files', transcriptionUntrusted: true, validation: { ...base.validation, sourceMethod: 'opencode-native-files', transcriptionUntrusted: true } }
+    const scenario: Scenario = { current, enabled: false, reason: 'invalid_candidate', modelText: raw, draftCalls: [], approveCalls: [] }
+    openDialog(scenario)
+    await editor()
+    expect(screen.getByText(/Přepis vytvořil model a nebyl nezávisle ověřen/)).toBeInTheDocument()
+    expect(screen.getByText(raw)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Schválit a importovat' })).toBeDisabled()
+  })
+
+  it('shows a separate model fetch error and keeps the draft editable', async () => {
+    const scenario: Scenario = { current: reviewBody(0, CANDIDATE, false, 'draft'), enabled: false, reason: 'invalid_candidate', modelText: null, draftCalls: [], approveCalls: [] }
+    const capability = stubCapability(scenario)
+    const failing: UploadCapability = { ...capability, fetchModelText: async () => ({ ok: false, error: { code: 'unavailable', message: 'Služba není dostupná. Zkuste to prosím později.', currentRevision: null } }) }
+    render(<ReviewDialog capability={failing} caseId={CASE} job={jobFixture('manual-review', true)} returnFocus={{ current: null }} onClose={vi.fn()} onChanged={vi.fn()} />)
+    const box = await editor()
+    expect(screen.getByRole('alert')).toHaveTextContent(/nepodařilo načíst/)
+    expect(box).toHaveValue(CANDIDATE)
+    expect(screen.queryByText(/Výstup modelu není k dispozici/)).toBeNull()
   })
 })

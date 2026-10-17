@@ -10,6 +10,57 @@ from rakathon_backend.uploads.review_validation import validate_candidate_text
 
 REVIEW_STATE_BLOB = "review-state"
 REVIEW_APPROVED_BLOB = "review-approved"
+TRANSCRIPTION_METHOD = "opencode-native-files"
+NOT_INVOKED_CODES = frozenset(
+    {
+        "image_no_ocr",
+        "scan_no_ocr",
+        "azure_not_opted_in",
+        "secret_missing",
+        "secret_empty",
+        "secret_unreadable",
+        "secret_not_file",
+        "secret_permissions",
+        "secret_symlink",
+        "tiff_unsupported",
+        "not_file_lane",
+        "file_page_limit",
+        "unsupported_file",
+        "image_unreadable",
+    }
+)
+FAILED_CODES = frozenset(
+    {
+        "session_failed",
+        "inference_failed",
+        "process_failed",
+        "agent_timeout",
+        "agent_failed",
+        "untrusted_endpoint",
+        "bad_timeout",
+        "transcript_failed",
+        "transcript_bad_json",
+        "transcript_too_large",
+        "transcript_page_mismatch",
+        "transcript_bad_shape",
+        "transcript_no_text",
+        "fhir_failed",
+        "fhir_too_large",
+        "conflicting_identity",
+        "exit_mismatch",
+        "converter_failed",
+        "missing_artifact",
+        "malformed_json",
+        "bad_envelope",
+        "sha_mismatch",
+        "invalid_fhir",
+        "missing_bundle",
+        "no_docker",
+        "convert_error",
+        "original_unavailable",
+        "store_unavailable",
+    }
+)
 MAX_HISTORY = 64
 MAX_STATE_BYTES = 524288
 STATES = frozenset(
@@ -84,3 +135,55 @@ def sanitize_receipt(receipt: Any) -> dict[str, Any]:
     if isinstance(clean.get("alreadyApplied"), bool):
         out["alreadyApplied"] = clean["alreadyApplied"]
     return out
+
+
+def _job_codes(job: dict[str, Any]) -> list[str]:
+    codes: list[str] = []
+    reason = job.get("reason")
+    if isinstance(reason, str) and reason:
+        codes.append(reason[:64])
+    issues = job.get("issues")
+    if isinstance(issues, list):
+        for item in issues[:8]:
+            if isinstance(item, dict):
+                code = item.get("code")
+                if isinstance(code, str) and code:
+                    codes.append(code[:64])
+            elif isinstance(item, str) and item:
+                codes.append(item[:64])
+    return codes
+
+
+def derive_draft_reason(job: dict[str, Any]) -> str:
+    for code in _job_codes(job):
+        if code in NOT_INVOKED_CODES:
+            return "model-not-invoked:" + code
+    for code in _job_codes(job):
+        if code in FAILED_CODES:
+            return "model-failed:" + code
+    if _job_codes(job):
+        return "model-failed:unknown"
+    if job.get("fhirStatus") is not None or job.get("modelMode") is not None:
+        return "model-failed:unknown"
+    return "legacy-draft-missing"
+
+
+def provenance_has_transcription(prov_raw: bytes | None, expected_sha: str) -> bool:
+    if prov_raw is None or not expected_sha:
+        return False
+    try:
+        doc: Any = json.loads(prov_raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return False
+    if not isinstance(doc, dict):
+        return False
+    marker = doc.get("transcription")
+    if not isinstance(marker, dict):
+        return False
+    if marker.get("method") != TRANSCRIPTION_METHOD:
+        return False
+    if marker.get("untrusted") is not True:
+        return False
+    direct = marker.get("source_sha256")
+    compat = marker.get("sourceSha256")
+    return not (direct != expected_sha and compat != expected_sha)

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LoginBoundary } from '../src/auth/LoginBoundary'
 import { caseResponse, jsonResponse, sessionResponse, workspaceResponse } from './backend-fixtures'
@@ -113,6 +113,8 @@ describe('logout then different account', () => {
     const sessionsAfterFirst = requested.filter(url => url === '/api/v1/session').length
     expect(sessionsAfterFirst).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: 'Odhlásit' }))
+    const firstConfirm = await screen.findByRole('dialog', { name: 'Opravdu se chcete odhlásit?' })
+    fireEvent.click(within(firstConfirm).getByRole('button', { name: 'Odhlásit se' }))
     expect(await screen.findByRole('heading', { level: 2, name: 'Ukázkové přihlášení' })).toBeInTheDocument()
     expect(window.location.hash).toBe('')
     expect(screen.queryByText('Přihlášeno: ukazka.lekar')).toBeNull()
@@ -124,6 +126,8 @@ describe('logout then different account', () => {
     const sessionsAfterSecond = requested.filter(url => url === '/api/v1/session').length
     expect(sessionsAfterSecond).toBeGreaterThan(sessionsAfterFirst)
     fireEvent.click(screen.getByRole('button', { name: 'Odhlásit' }))
+    const secondConfirm = await screen.findByRole('dialog', { name: 'Opravdu se chcete odhlásit?' })
+    fireEvent.click(within(secondConfirm).getByRole('button', { name: 'Odhlásit se' }))
     await waitFor(() => expect(logoutCsrf).toContain('csrf-mdt'))
     expect(logoutCsrf.at(-1)).toBe('csrf-mdt')
     expect(localStorage.length).toBe(0)

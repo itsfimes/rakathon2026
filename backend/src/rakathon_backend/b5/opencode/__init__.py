@@ -1,6 +1,21 @@
 from rakathon_backend.b5.opencode.adapter import OpenCodeAdapter
 from rakathon_backend.b5.opencode.client import OpenCodeClient
 from rakathon_backend.b5.opencode.config import OpenCodeConfig, from_env
+from rakathon_backend.b5.opencode.file_client import (
+    ALLOWED_SUFFIXES,
+    FILE_ALLOWED_ROOT,
+    MAX_FILE_BYTES,
+    MAX_FILES,
+    MAX_MESSAGE_PAGES,
+    MAX_MESSAGES,
+    MAX_PDF_PAGES,
+    MAX_RESULT_BYTES,
+    MAX_TOTAL_BYTES,
+    FilePromptResult,
+    OpenCodeFileClient,
+)
+from rakathon_backend.b5.opencode.file_config import build_file_config_content
+from rakathon_backend.b5.opencode.file_errors import FilePromptError
 from rakathon_backend.b5.opencode.process import OpenCodeProcess, probe_version, reserve_port
 from rakathon_backend.b5.opencode.validation import (
     AI_EDGE_TIMEOUT,
@@ -32,18 +47,31 @@ __all__ = [
     "AI_GATEWAY_TIMEOUT",
     "AI_IPC_TIMEOUT",
     "AI_REQUEST_TIMEOUT",
+    "ALLOWED_SUFFIXES",
     "AZURE_API_KEY_HEADER",
     "AZURE_API_KEY_REF",
     "AZURE_BASE_URL",
     "AZURE_PROVIDER_ID",
     "EXPECTED_VERSION",
+    "FILE_ALLOWED_ROOT",
+    "MAX_FILES",
+    "MAX_FILE_BYTES",
+    "MAX_MESSAGES",
+    "MAX_MESSAGE_PAGES",
+    "MAX_PDF_PAGES",
+    "MAX_RESULT_BYTES",
+    "MAX_TOTAL_BYTES",
     "PROVIDER_PACKAGE",
+    "FilePromptError",
+    "FilePromptResult",
     "OpenCodeAdapter",
     "OpenCodeClient",
     "OpenCodeConfig",
+    "OpenCodeFileClient",
     "OpenCodeProcess",
     "build_complete_prompt",
     "build_config_content",
+    "build_file_config_content",
     "build_translate_prompt",
     "from_env",
     "parse_generate_text",

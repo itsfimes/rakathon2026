@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LoginBoundary } from '../src/auth/LoginBoundary'
 import { authSessionFrom } from '../src/auth/contracts'
@@ -161,6 +161,8 @@ describe('demo role cards at login', () => {
     fireEvent.click(screen.getByRole('button', { name: /Lékař/ }))
     expect(await screen.findByText('Přihlášeno: ukazka.lekar')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Odhlásit' }))
+    const demoConfirm = await screen.findByRole('dialog', { name: 'Opravdu se chcete odhlásit?' })
+    fireEvent.click(within(demoConfirm).getByRole('button', { name: 'Odhlásit se' }))
     expect(await screen.findByRole('heading', { level: 2, name: 'Ukázkové přihlášení' })).toBeInTheDocument()
     expect(screen.queryByText('Přihlášeno: ukazka.lekar')).toBeNull()
     expect(window.location.hash).toBe('')

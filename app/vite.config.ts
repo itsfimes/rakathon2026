@@ -2,7 +2,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 import { backendProxy } from './backend-proxy.ts'
 
-const proxy = backendProxy(process.env.RAKATHON_BACKEND_PROXY_KEY_FILE, import.meta.dirname)
+const proxy = backendProxy(process.env.RAKATHON_BACKEND_PROXY_KEY_FILE, import.meta.dirname, process.env.RAKATHON_BACKEND_PROXY_TARGET)
 export default defineConfig({
   plugins: [react()],
   server: { host: '0.0.0.0', port: 5173, strictPort: true,

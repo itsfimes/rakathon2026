@@ -276,4 +276,62 @@ describe('upload review client', () => {
     expect(saved.error.message).toMatch(/Relace/)
     expect(seen).toHaveLength(0)
   })
+
+  it('surfaces model fetch failure separately without wiping the draft', async () => {
+    const { capability } = setup(route => {
+      if (route.url.endsWith('/review/model')) return new Response('down', { status: 503 })
+      return json(envelope(0, CANDIDATE, false, 'draft', false, 'invalid_candidate'))
+    })
+    const { result } = renderHook(() => useUploadReview(capability, CASE, JOB_ID))
+    await waitFor(() => expect(result.current.review?.revision).toBe(0))
+    await waitFor(() => expect(result.current.modelLoading).toBe(false))
+    expect(result.current.modelText).toBeNull()
+    expect(result.current.modelError).toMatch(/dostupná|později/)
+    expect(result.current.text).toBe(CANDIDATE)
+    expect(result.current.error).toBeNull()
+  })
+
+  it('reports model loading explicitly before the text arrives', async () => {
+    let release!: (value: Response) => void
+    const gated = new Promise<Response>(resolve => { release = resolve })
+    const { capability } = setup(route => {
+      if (route.url.endsWith('/review/model')) return gated
+      return json(envelope(0, CANDIDATE, false, 'draft', false, 'invalid_candidate'))
+    })
+    const { result } = renderHook(() => useUploadReview(capability, CASE, JOB_ID))
+    await waitFor(() => expect(result.current.review?.revision).toBe(0))
+    expect(result.current.modelLoading).toBe(true)
+    expect(result.current.modelError).toBeNull()
+    release(json({ version: 1, modelOutputText: 'raw' }))
+    await waitFor(() => expect(result.current.modelLoading).toBe(false))
+    expect(result.current.modelText).toBe('raw')
+  })
+
+  it('clears model error, loading and text on case switch', async () => {
+    const { capability, seen } = setup(route => {
+      if (route.url.endsWith('/review/model')) return new Response('down', { status: 503 })
+      return json(envelope(0, CANDIDATE, false, 'draft', false, 'invalid_candidate'))
+    })
+    const { result, rerender } = renderHook(({ caseId }: { caseId: string }) => useUploadReview(capability, caseId, JOB_ID), { initialProps: { caseId: CASE } })
+    await waitFor(() => expect(result.current.modelError).not.toBeNull())
+    rerender({ caseId: 'synthetic-9' })
+    expect(result.current.modelText).toBeNull()
+    expect(result.current.modelError).toBeNull()
+    expect(result.current.text).toBe('')
+    await waitFor(() => expect(seen.length).toBeGreaterThan(2))
+  })
+
+  it('parses new provenance fields and stays compatible with old fixtures', async () => {
+    const { capability } = setup(route => {
+      if (route.url.endsWith('/review/model')) return json({ version: 1, modelOutputText: null })
+      const base = reviewBody(0, '', false)
+      const withProvenance = { ...base, sourceMethod: 'opencode-native-files', transcriptionUntrusted: true, validation: { ...base.validation, sourceMethod: 'opencode-native-files', transcriptionUntrusted: true } }
+      return json({ version: 1, review: withProvenance, approvalEnabled: false, approvalReason: 'invalid_candidate' })
+    })
+    const { result } = renderHook(() => useUploadReview(capability, CASE, JOB_ID))
+    await waitFor(() => expect(result.current.review?.revision).toBe(0))
+    expect(result.current.review?.sourceMethod).toBe('opencode-native-files')
+    expect(result.current.review?.transcriptionUntrusted).toBe(true)
+    expect(result.current.review?.candidateText).toBe('')
+  })
 })

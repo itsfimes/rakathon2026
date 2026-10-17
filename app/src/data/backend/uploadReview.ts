@@ -7,6 +7,7 @@ export interface ReviewIssue {
   readonly path: string
   readonly message: string
 }
+export type ReviewSourceMethod = 'opencode-native-files'
 export interface ReviewValidation {
   readonly valid: boolean
   readonly issues: readonly ReviewIssue[]
@@ -15,6 +16,8 @@ export interface ReviewValidation {
   readonly sourceUrn: string
   readonly sourceSha256: string
   readonly modelDraftAvailable: boolean
+  readonly sourceMethod: ReviewSourceMethod | null
+  readonly transcriptionUntrusted: boolean
   readonly updatedAt: string
   readonly reviewedBy: string | null
 }
@@ -31,6 +34,8 @@ export interface UploadReview {
   readonly caseId: string
   readonly modelDraftAvailable: boolean
   readonly modelDraftReason: string | null
+  readonly sourceMethod: ReviewSourceMethod | null
+  readonly transcriptionUntrusted: boolean
   readonly updatedAt: string
   readonly reviewedBy: string | null
   readonly importReceipt: unknown
@@ -99,6 +104,12 @@ function parseIssues(value: unknown): readonly ReviewIssue[] | null {
   }
   return out
 }
+function parseSourceMethod(value: unknown): ReviewSourceMethod | null {
+  return value === 'opencode-native-files' ? 'opencode-native-files' : null
+}
+function parseUntrusted(value: unknown, method: ReviewSourceMethod | null): boolean {
+  return value === true && method !== null
+}
 function parseValidation(value: unknown): ReviewValidation | null {
   const source = record(value)
   if (!source || typeof source['valid'] !== 'boolean') return null
@@ -112,7 +123,8 @@ function parseValidation(value: unknown): ReviewValidation | null {
   if (typeof source['modelDraftAvailable'] !== 'boolean') return null
   const reviewedBy = source['reviewedBy']
   if (reviewedBy !== null && typeof reviewedBy !== 'string') return null
-  return { valid: source['valid'], issues, counts, patientRef, sourceUrn, sourceSha256, modelDraftAvailable: source['modelDraftAvailable'], updatedAt, reviewedBy }
+  const method = parseSourceMethod(source['sourceMethod'] ?? null)
+  return { valid: source['valid'], issues, counts, patientRef, sourceUrn, sourceSha256, modelDraftAvailable: source['modelDraftAvailable'], sourceMethod: method, transcriptionUntrusted: parseUntrusted(source['transcriptionUntrusted'] ?? false, method), updatedAt, reviewedBy }
 }
 function parseReview(value: unknown): UploadReview | null {
   const source = record(value)
@@ -137,7 +149,8 @@ function parseReview(value: unknown): UploadReview | null {
   if (reason !== null && typeof reason !== 'string') return null
   if (reviewedBy !== null && typeof reviewedBy !== 'string') return null
   if (approvalId !== null && typeof approvalId !== 'string') return null
-  return { jobId: jobId.toLowerCase(), revision, state: state as ReviewState, candidateText, validation, counts, patientRef, sourceUrn, sourceSha256, caseId, modelDraftAvailable: source['modelDraftAvailable'], modelDraftReason: reason, updatedAt, reviewedBy, importReceipt: source['importReceipt'] ?? null, approvalId }
+  const method = parseSourceMethod(source['sourceMethod'] ?? null)
+  return { jobId: jobId.toLowerCase(), revision, state: state as ReviewState, candidateText, validation, counts, patientRef, sourceUrn, sourceSha256, caseId, modelDraftAvailable: source['modelDraftAvailable'], modelDraftReason: reason, sourceMethod: method, transcriptionUntrusted: parseUntrusted(source['transcriptionUntrusted'] ?? false, method), updatedAt, reviewedBy, importReceipt: source['importReceipt'] ?? null, approvalId }
 }
 function parseEnvelope(value: unknown): ReviewEnvelope | null {
   const source = record(value)

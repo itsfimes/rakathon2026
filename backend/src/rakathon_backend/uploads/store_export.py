@@ -6,6 +6,7 @@ import zipfile as _zf
 from typing import Any
 
 from rakathon_backend.common.fhir import validate_bundle
+from rakathon_backend.uploads.transcription_artifact import is_valid_transcription_bytes
 
 MAX_EXPORT_BYTES = 12 * 1024 * 1024
 
@@ -18,6 +19,7 @@ def build_export_zip(
     events: Any,
     status: Any,
     sha256: Any,
+    transcription: bytes | None = None,
 ) -> bytes | None:
     buf = io.BytesIO()
     with _zf.ZipFile(buf, "w", _zf.ZIP_DEFLATED) as zf:
@@ -36,6 +38,8 @@ def build_export_zip(
                 pass
         if provenance is not None:
             zf.writestr("provenance.json", provenance)
+        if transcription is not None and is_valid_transcription_bytes(transcription, sha256):
+            zf.writestr("transcription.json", transcription)
         zf.writestr("attempts.json", json.dumps(events).encode())
     out = buf.getvalue()
     if len(out) > MAX_EXPORT_BYTES:

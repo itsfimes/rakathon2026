@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LoginBoundary } from '../src/auth/LoginBoundary'
 import { fetchAuthSession, loginRequest, logoutRequest } from '../src/auth/client'
@@ -115,7 +115,7 @@ describe('login gate', () => {
     expect(screen.getByRole('button', { name: 'Odhlásit' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 2, name: 'Přihlášení' })).toBeNull()
     expect(await screen.findByText('Data se nepodařilo načíst')).toBeInTheDocument()
-    expect(screen.getByText(/přihlášení ověřuje server/)).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Přihlášení' })).getByText(/Přihlášení ověřuje server/)).toBeInTheDocument()
     expect(fetcher.mock.calls.map(call => String(call[0]))).toContain('/api/v1/auth/session')
   })
   it('bad credentials show a generic error without enumeration', async () => {
@@ -155,6 +155,14 @@ describe('login gate', () => {
     await screen.findByText('Přihlášeno: jana.novakova')
     await waitFor(() => expect(requested).toContain('/api/v1/workspace'))
     fireEvent.click(screen.getByRole('button', { name: 'Odhlásit' }))
+    const confirm = await screen.findByRole('dialog', { name: 'Opravdu se chcete odhlásit?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Zrušit' }))
+    expect(confirm).not.toHaveAttribute('open')
+    expect(screen.getByText('Přihlášeno: jana.novakova')).toBeInTheDocument()
+    expect(fetcher.mock.calls.map(call => String(call[0]))).not.toContain('/api/v1/auth/logout')
+    fireEvent.click(screen.getByRole('button', { name: 'Odhlásit' }))
+    const reconfirm = await screen.findByRole('dialog', { name: 'Opravdu se chcete odhlásit?' })
+    fireEvent.click(within(reconfirm).getByRole('button', { name: 'Odhlásit se' }))
     expect(await screen.findByRole('heading', { level: 2, name: 'Přihlášení' })).toBeInTheDocument()
     expect(screen.queryByText('Přihlášeno: jana.novakova')).toBeNull()
     await waitFor(() => expect(aborted).toBe(true))
@@ -178,6 +186,8 @@ describe('login gate', () => {
     render(<LoginBoundary />)
     await screen.findByText('Přihlášeno: jana.novakova')
     fireEvent.click(screen.getByRole('button', { name: 'Odhlásit' }))
+    const failedConfirm = await screen.findByRole('dialog', { name: 'Opravdu se chcete odhlásit?' })
+    fireEvent.click(within(failedConfirm).getByRole('button', { name: 'Odhlásit se' }))
     const warning = await screen.findByRole('alert')
     expect(warning).toHaveTextContent('Odhlášení se na serveru nepodařilo potvrdit')
     expect(screen.queryByText('Přihlášeno: jana.novakova')).toBeNull()

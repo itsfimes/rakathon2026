@@ -34,6 +34,8 @@ from rakathon_backend.converter.extract import (
     extract_file,
     hash_only,
 )
+from rakathon_backend.converter.file_flow import run_file_flow
+from rakathon_backend.converter.file_inputs import needs_file_lane
 from rakathon_backend.converter.model_draft import build_model_draft
 from rakathon_backend.converter.output import (
     OutputError,
@@ -226,6 +228,8 @@ def _main(argv: Sequence[str] | None) -> int:
         return EXIT_OK
     if args.extract:
         return _extract_only(args, started)
+    if needs_file_lane(str(args.input)):
+        return run_file_flow(args, started)
     adaptive_info: dict[str, Any] = {
         "newFormat": False,
         "recipeReuse": False,
@@ -245,6 +249,8 @@ def _main(argv: Sequence[str] | None) -> int:
             _write_progress(args, "known_start", adaptive_info)
             extracted = extract_file(str(args.input))
     except ManualReviewNeeded as exc:
+        if exc.code == "scan_no_ocr" and args.allow_azure and args.secret_file:
+            return run_file_flow(args, started)
         return _manual_exit(args, exc.code, exc.message, None, started, EXIT_OK)
     except ConverterError as exc:
         return _manual_exit(args, exc.code, exc.message, None, started, EXIT_REJECTED)

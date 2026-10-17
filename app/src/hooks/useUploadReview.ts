@@ -8,6 +8,8 @@ export interface UploadReviewView {
   readonly conflict: number | null
   readonly review: UploadReview | null
   readonly modelText: string | null
+  readonly modelLoading: boolean
+  readonly modelError: string | null
   readonly text: string
   readonly dirty: boolean
   readonly saving: boolean
@@ -33,6 +35,8 @@ export function useUploadReview(capability: UploadCapability | null, caseId: str
   const [approvalEnabled, setApprovalEnabled] = useState(false)
   const [approvalReason, setApprovalReason] = useState<ApprovalReason | null>(null)
   const [modelText, setModelText] = useState<string | null>(null)
+  const [modelLoading, setModelLoading] = useState(false)
+  const [modelError, setModelError] = useState<string | null>(null)
   const [text, setTextState] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -69,6 +73,8 @@ export function useUploadReview(capability: UploadCapability | null, caseId: str
     setApprovalEnabled(false)
     setApprovalReason(null)
     setModelText(null)
+    setModelLoading(false)
+    setModelError(null)
     setTextState('')
     setError(null)
     setConflict(null)
@@ -92,6 +98,8 @@ export function useUploadReview(capability: UploadCapability | null, caseId: str
     }
     const target = jobId
     setLoading(true)
+    setModelLoading(true)
+    setModelError(null)
     fetchReview(target, ctl.signal).then(result => {
       if (gen !== genRef.current || ctl.signal.aborted || !mountedRef.current) return
       if (!result.ok) {
@@ -109,7 +117,24 @@ export function useUploadReview(capability: UploadCapability | null, caseId: str
     })
     fetchModelText(target, ctl.signal).then(result => {
       if (gen !== genRef.current || ctl.signal.aborted || !mountedRef.current) return
-      if (result.ok) setModelText(result.value)
+      if (result.ok) {
+        setModelText(result.value)
+        setModelError(null)
+        setModelLoading(false)
+        return
+      }
+      if (result.error.code === 'aborted') {
+        setModelLoading(false)
+        return
+      }
+      if (sessionLost(result.error.message)) {
+        setModelLoading(false)
+        setModelError(null)
+        applyFailure(result.error)
+        return
+      }
+      setModelError(result.error.message)
+      setModelLoading(false)
     })
     return () => {
       ctl.abort()
@@ -122,6 +147,8 @@ export function useUploadReview(capability: UploadCapability | null, caseId: str
       if (sessionLost(failure.message)) {
         setReview(null)
         setModelText(null)
+        setModelLoading(false)
+        setModelError(null)
         setTextState('')
         setApprovalEnabled(false)
         setApprovalReason(null)
@@ -162,6 +189,8 @@ export function useUploadReview(capability: UploadCapability | null, caseId: str
         if (sessionLost(result.error.message)) {
           setReview(null)
           setModelText(null)
+          setModelLoading(false)
+          setModelError(null)
           setTextState('')
         }
         setSaving(false)
@@ -253,6 +282,8 @@ export function useUploadReview(capability: UploadCapability | null, caseId: str
     conflict,
     review,
     modelText,
+    modelLoading,
+    modelError,
     text,
     dirty: review !== null && text !== review.candidateText,
     saving,

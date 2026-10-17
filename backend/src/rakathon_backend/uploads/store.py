@@ -345,4 +345,5 @@ class UploadStore:
             job.get("events", []),
             job.get("status"),
             job.get("sha256"),
+            self.read_result_blob(job_id, "transcription"),
         )
