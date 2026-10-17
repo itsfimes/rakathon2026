@@ -23,6 +23,7 @@ ORIGIN_HEADER = "origin"
 COOKIE_PROD = "__Host-rakathon_session"
 COOKIE_LOOPBACK = "rakathon_session_loopback"
 MAX_BODY_BYTES = 16 * 1024
+MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_PATH_CHARS = 2048
 MAX_HEADER_CHARS = 8192
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{43,128}$")

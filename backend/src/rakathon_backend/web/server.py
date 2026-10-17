@@ -12,6 +12,7 @@ from rakathon_backend.web.config import (
     MAX_BODY_BYTES,
     MAX_HEADER_CHARS,
     MAX_PATH_CHARS,
+    MAX_RESPONSE_BYTES,
     listener_authority,
 )
 from rakathon_backend.web.router import AuthHTTPRouter
@@ -211,7 +212,7 @@ class _AuthHandler(BaseHTTPRequestHandler):
         except (ValueError, TypeError):
             self._refuse(503, {})
             return
-        if len(raw) > MAX_BODY_BYTES * 4:
+        if len(raw) > MAX_RESPONSE_BYTES:
             self._refuse(503, {})
             return
         self.send_response(status)

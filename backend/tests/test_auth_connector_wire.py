@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
-import http.client
 import json
 import secrets
 import signal
@@ -10,6 +9,7 @@ import subprocess
 import sys
 import threading
 from collections.abc import Awaitable, Callable
+from http.client import HTTPConnection, IncompleteRead
 from pathlib import Path
 from typing import Any
 
@@ -58,7 +58,7 @@ def request(
     headers: dict[str, str] | None = None,
     body: bytes | None = None,
 ) -> tuple[int, dict[str, str], bytes]:
-    conn = http.client.HTTPConnection(host, port, timeout=10)
+    conn = HTTPConnection(host, port, timeout=10)
     try:
         conn.request(method, path, body=body, headers=headers or {})
         reply = conn.getresponse()
@@ -118,9 +118,7 @@ async def fake_land(live: dict[str, Any]) -> None:
     live["http"].shutdown()
     live["thread"].join(timeout=10.0)
     live["http"].server_close()
-    server = live["server"]
-    assert isinstance(server, UnixJsonServer)
-    await server.close()
+    await live["server"].close()
 
 
 def bad_handler(flavor: str) -> Handler:
@@ -198,8 +196,7 @@ async def test_b7_rejects_foreign_source(tmp_path: Path) -> None:
 async def test_bad_b7_reply_shape_maps_503(tmp_path: Path, flavor: str) -> None:
     live = await fake_live(tmp_path, f"bad-{flavor}", bad_handler(flavor))
     try:
-        host = str(live["host"])
-        port = int(live["port"])
+        host, port = str(live["host"]), int(live["port"])
         body = json.dumps({"username": "jane.doe", "password": PW}).encode()
         status, _, raw = await over_http(
             host, port, "POST", "/api/v1/auth/login", login_headers(), body
@@ -265,8 +262,7 @@ def seed_handler() -> Handler:
 async def test_fake_b7_provider_answers_http_unchanged(tmp_path: Path) -> None:
     live = await fake_live(tmp_path, "seed", seed_handler())
     try:
-        host = str(live["host"])
-        port = int(live["port"])
+        host, port = str(live["host"]), int(live["port"])
         body = json.dumps({"username": "seed.user", "password": "anything-at-all"}).encode()
         status, headers, raw = await over_http(
             host, port, "POST", "/api/v1/auth/login", login_headers(), body
@@ -299,8 +295,16 @@ def burst_login(port: int, headers: dict[str, str]) -> None:
     try:
         body = json.dumps({"username": "jane.doe", "password": PW}).encode()
         request("127.0.0.1", port, "POST", "/api/v1/auth/login", headers, body)
-    except (OSError, ValueError, RuntimeError):
+    except (OSError, ValueError, RuntimeError, IncompleteRead):
         return
+
+
+def test_burst_login_swallows_incomplete_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _boom(*args: Any, **kwargs: Any) -> tuple[int, dict[str, str], bytes]:
+        raise IncompleteRead(b"partial", 8)
+
+    monkeypatch.setattr(sys.modules[__name__], "request", _boom)
+    burst_login(0, {})
 
 
 def test_auth_serve_sigterm_bounded_shutdown(tmp_path: Path) -> None:
@@ -317,19 +321,16 @@ def test_auth_serve_sigterm_bounded_shutdown(tmp_path: Path) -> None:
     runtime = tmp_path / "rt"
     runtime.mkdir(mode=0o700)
     proxy = (auth_dir / "proxy.key").read_text(encoding="ascii").strip()
-    headers = dict(login_headers())
-    headers["X-Rakathon-Proxy-Key"] = proxy
+    headers = {**login_headers(), "X-Rakathon-Proxy-Key": proxy}
     cmd = [sys.executable, "-m", "rakathon_backend", "auth-serve", "--auth-store", "demo"]
-    cmd += ["--auth-dir", str(auth_dir), "--origin", ORIGIN, "--allow-loopback-http"]
-    cmd += ["--bind", "127.0.0.1", "--port", "0", "--storage", "mock"]
-    cmd += ["--runtime-dir", str(runtime)]
+    cmd += ["--auth-dir", str(auth_dir), "--origin", ORIGIN, "--allow-loopback-http", "--bind"]
+    cmd += ["127.0.0.1", "--port", "0", "--storage", "mock", "--runtime-dir", str(runtime)]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
     try:
         assert proc.stdout is not None
-        stream = proc.stdout
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            line = pool.submit(stream.readline).result(timeout=90.0)
-        stream.close()
+            line = pool.submit(proc.stdout.readline).result(timeout=90.0)
+        proc.stdout.close()
         info = json.loads(line)
         assert info["serving"] is True
         port = int(info["port"])
