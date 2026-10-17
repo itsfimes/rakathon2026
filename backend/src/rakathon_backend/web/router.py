@@ -23,6 +23,19 @@ from rakathon_backend.web.config import (
     extract_session_cookie,
     set_cookie_header,
 )
+from rakathon_backend.web.demo_login import (
+    DemoLoginConfig,
+    anon_session_body,
+    auth_success_body,
+    demo_account_from,
+    demo_fail_closed,
+    demo_matches,
+    revoke_quietly,
+    revoked_stale_session_401,
+    stale_session_401,
+)
+from rakathon_backend.web.demo_login import auth_default_deny as _default_deny
+from rakathon_backend.web.demo_login import auth_safe_error as _safe_error
 
 
 @dataclass(frozen=True)
@@ -39,22 +52,12 @@ ProtectedHandler = Callable[
 B4Dispatch = Callable[[VerifiedIdentity, str, str, dict[str, Any]], tuple[int, dict[str, Any]]]
 
 LOGIN_PATH = "/api/v1/auth/login"
+DEMO_LOGIN_PATH = "/api/v1/auth/demo-login"
 SESSION_PATH = "/api/v1/auth/session"
 LOGOUT_PATH = "/api/v1/auth/logout"
 HEALTH_PATH = "/health"
 AUTH_PREFIX = "/api/v1/auth/"
 RETRY_AFTER = "5"
-
-
-def _safe_error(code: str) -> dict[str, Any]:
-    return {"error": code}
-
-
-def _default_deny(
-    identity: VerifiedIdentity, method: str, path: str, body: dict[str, Any]
-) -> tuple[int, dict[str, Any]]:
-    _ = (identity, method, path, body)
-    return (503, {"error": "not_configured"})
 
 
 class AuthHTTPRouter:
@@ -68,6 +71,7 @@ class AuthHTTPRouter:
         logout: Callable[[str], None],
         protected: ProtectedHandler | None = None,
         allowed_hosts: frozenset[str] | None = None,
+        demo: DemoLoginConfig | None = None,
     ) -> None:
         self._config = config
         self._proxy = proxy_key
@@ -75,6 +79,7 @@ class AuthHTTPRouter:
         self._resolve = resolve
         self._csrf_for = csrf_for
         self._logout = logout
+        self._demo = demo
         self._protected = protected if protected is not None else _default_deny
         self._allowed_hosts = allowed_hosts
 
@@ -120,6 +125,8 @@ class AuthHTTPRouter:
     ) -> tuple[int, dict[str, str], dict[str, Any]]:
         if path == LOGIN_PATH and method == "POST":
             return self._do_login(headers, body)
+        if path == DEMO_LOGIN_PATH and method == "POST":
+            return self._do_demo_login(headers, body)
         if path == SESSION_PATH and method == "GET":
             return self._do_session(headers)
         if path == LOGOUT_PATH and method == "POST":
@@ -178,20 +185,51 @@ class AuthHTTPRouter:
             return (503, {}, _safe_error("not_configured"))
         except (OSError, ValueError, KeyError, RuntimeError, TimeoutError):
             return (503, {}, _safe_error("not_configured"))
+        if demo_fail_closed(self._demo, identity.username, identity.role):
+            revoke_quietly(self._logout, token)
+            return (401, {}, _safe_error("invalid_credentials"))
         cookie = set_cookie_header(self._config.cookie_name, token, self._config.secure_cookie)
-        return (
-            200,
-            {"Set-Cookie": cookie},
-            {
-                "authenticated": True,
-                "user": {
-                    "id": identity.user_id,
-                    "username": identity.username,
-                    "role": identity.role,
-                },
-                "csrfToken": csrf,
-            },
+        out = auth_success_body(
+            identity.user_id, identity.username, identity.role, csrf, self._demo
         )
+        return (200, {"Set-Cookie": cookie}, out)
+
+    def _do_demo_login(
+        self, headers: dict[str, str], body: bytes | None
+    ) -> tuple[int, dict[str, str], dict[str, Any]]:
+        if self._demo is None:
+            return (404, {}, _safe_error("not_found"))
+        if headers.get(LOGIN_HEADER) != LOGIN_HEADER_VALUE:
+            return (401, {}, _safe_error("auth_failed"))
+        if not self._require_origin(headers):
+            return (403, {}, _safe_error("auth_failed"))
+        payload = self._parse_json_body(headers, body)
+        if payload is None:
+            return (400, {}, _safe_error("bad_request"))
+        account = demo_account_from(payload)
+        if account is None:
+            return (400, {}, _safe_error("bad_request"))
+        creds = self._demo.credentials_for(account)
+        if creds is None:
+            return (400, {}, _safe_error("bad_request"))
+        try:
+            token, identity, csrf = self._login(creds[0], creds[1])
+        except RateLimited:
+            return (429, {"Retry-After": RETRY_AFTER}, _safe_error("rate_limited"))
+        except AuthFailed:
+            return (401, {}, _safe_error("invalid_credentials"))
+        except (StoreUnavailable, ContractError, TransportError, AuthError):
+            return (503, {}, _safe_error("not_configured"))
+        except (OSError, ValueError, KeyError, RuntimeError, TimeoutError):
+            return (503, {}, _safe_error("not_configured"))
+        if not demo_matches(self._demo, account, identity.username, identity.role):
+            revoke_quietly(self._logout, token)
+            return (401, {}, _safe_error("invalid_credentials"))
+        cookie = set_cookie_header(self._config.cookie_name, token, self._config.secure_cookie)
+        out = auth_success_body(
+            identity.user_id, identity.username, identity.role, csrf, self._demo
+        )
+        return (200, {"Set-Cookie": cookie}, out)
 
     def _cookie_token(self, headers: dict[str, str]) -> str | None | bool:
         raw = headers.get("cookie")
@@ -202,10 +240,11 @@ class AuthHTTPRouter:
 
     def _do_session(self, headers: dict[str, str]) -> tuple[int, dict[str, str], dict[str, Any]]:
         token = self._cookie_token(headers)
+        name, secure = self._config.cookie_name, self._config.secure_cookie
         if token is None:
-            return (200, {}, {"authenticated": False})
+            return (200, {}, anon_session_body(self._demo))
         if token is False:
-            return (401, {}, _safe_error("invalid_credentials"))
+            return stale_session_401(self._demo, name, secure)
         assert isinstance(token, str)
         try:
             identity = self._resolve(token)
@@ -213,24 +252,15 @@ class AuthHTTPRouter:
         except RateLimited:
             return (429, {"Retry-After": RETRY_AFTER}, _safe_error("rate_limited"))
         except AuthFailed:
-            return (401, {}, _safe_error("invalid_credentials"))
+            return stale_session_401(self._demo, name, secure)
         except (StoreUnavailable, ContractError, TransportError, AuthError):
             return (503, {}, _safe_error("not_configured"))
         except (OSError, ValueError, KeyError, RuntimeError, TimeoutError):
             return (503, {}, _safe_error("not_configured"))
-        return (
-            200,
-            {},
-            {
-                "authenticated": True,
-                "user": {
-                    "id": identity.user_id,
-                    "username": identity.username,
-                    "role": identity.role,
-                },
-                "csrfToken": csrf,
-            },
-        )
+        if demo_fail_closed(self._demo, identity.username, identity.role):
+            return revoked_stale_session_401(self._logout, token, self._demo, name, secure)
+        ok = auth_success_body(identity.user_id, identity.username, identity.role, csrf, self._demo)
+        return (200, {}, ok)
 
     def _do_logout(self, headers: dict[str, str]) -> tuple[int, dict[str, str], dict[str, Any]]:
         cleared = {

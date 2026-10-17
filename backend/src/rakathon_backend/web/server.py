@@ -113,6 +113,7 @@ class _AuthHandler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-store")
         for key, value in headers.items():
             self.send_header(key, value)
         self.end_headers()
@@ -203,6 +204,7 @@ class _AuthHandler(BaseHTTPRequestHandler):
             return
         if status == 204:
             self.send_response(204)
+            self.send_header("Cache-Control", "no-store")
             for key, value in out_headers.items():
                 self.send_header(key, value)
             self.end_headers()
@@ -218,6 +220,7 @@ class _AuthHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-store")
         for key, value in out_headers.items():
             self.send_header(key, value)
         self.end_headers()

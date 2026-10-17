@@ -6,9 +6,10 @@ import { parseDataMode } from '../data/mode'
 import { bootOnce, resetBootCache } from '../session'
 import { Icon } from '../icons/Icon'
 import { LoginView } from '../features/auth/LoginView'
-import { fetchAuthSession, loginRequest, logoutRequest } from './client'
-import type { AuthFailureKind, AuthIdentity } from './contracts'
+import { demoLoginRequest, fetchAuthSession, loginRequest, logoutRequest } from './client'
+import type { AuthFailureKind, AuthIdentity, DemoAccount } from './contracts'
 import { createRequestScope } from './requestScope'
+import { routeFromLocation } from '../lib/routes'
 import './auth.css'
 
 type Stage = 'checking' | 'login' | 'ready'
@@ -44,18 +45,28 @@ function AuthGate() {
   const [logoutWarning, setLogoutWarning] = useState<string | null>(null)
   const [lastUsername, setLastUsername] = useState('')
   const [checkRound, setCheckRound] = useState(0)
+  const [demoAccounts, setDemoAccounts] = useState<readonly DemoAccount[] | null>(null)
+  const [demoView, setDemoView] = useState<DemoAccount | null>(null)
+  const [demoPending, setDemoPending] = useState<DemoAccount | null>(null)
+  const [demoProblem, setDemoProblem] = useState<AuthFailureKind | null>(null)
   const scopeRef = useRef(createRequestScope())
   const genRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const csrfRef = useRef<string | null>(null)
+  const loginBusyRef = useRef(false)
 
   const clearClinical = useCallback(() => {
     genRef.current += 1
     abortRef.current?.abort()
     abortRef.current = null
+    loginBusyRef.current = false
     resetBootCache()
     setBoot(null)
     setIdentity(null)
+    setDemoView(null)
+    setDemoPending(null)
+    setDemoProblem(null)
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`)
   }, [])
 
   const enterReady = useCallback((next: AuthIdentity) => {
@@ -66,7 +77,16 @@ function AuthGate() {
     setIdentity(next)
     setNotice(null)
     setProblem(null)
+    setDemoProblem(null)
+    setDemoPending(null)
     setLogoutWarning(null)
+    const locked = next.demoView ?? null
+    setDemoView(locked)
+    if (locked) {
+      const current = routeFromLocation(window.location)
+      const validSameView = current.view === locked && current.page !== 'invalid-view' && current.page !== 'invalid-detail'
+      if (!validSameView) window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}#${locked}`)
+    }
     const controller = new AbortController()
     abortRef.current = controller
     setBoot(createBackendSession(controller.signal, undefined, {
@@ -89,10 +109,12 @@ function AuthGate() {
     fetchAuthSession(controller.signal).then(result => {
       apply(() => {
         if (result.ok && result.value.authenticated) {
-          enterReady({ ...result.value.user, csrfToken: result.value.csrfToken })
+          if (result.value.demoAccounts) setDemoAccounts(result.value.demoAccounts)
+          enterReady({ ...result.value.user, csrfToken: result.value.csrfToken, ...(result.value.demoView ? { demoView: result.value.demoView } : {}) })
           return
         }
         if (result.ok) {
+          setDemoAccounts(result.value.demoAccounts ?? null)
           setStage('login')
           return
         }
@@ -108,6 +130,8 @@ function AuthGate() {
   }, [])
 
   const handleLogin = useCallback((username: string, password: string) => {
+    if (loginBusyRef.current) return
+    loginBusyRef.current = true
     const apply = scopeRef.current.begin()
     setLoginPending(true)
     setProblem(null)
@@ -115,6 +139,7 @@ function AuthGate() {
     const controller = new AbortController()
     loginRequest(username, password, controller.signal).then(result => {
       apply(() => {
+        loginBusyRef.current = false
         setLoginPending(false)
         if (result.ok) {
           setLastUsername(result.value.username)
@@ -122,6 +147,28 @@ function AuthGate() {
           return
         }
         if (result.error.kind !== 'aborted') setProblem(result.error.kind)
+      })
+    })
+  }, [enterReady])
+
+  const handleDemoLogin = useCallback((account: DemoAccount) => {
+    if (loginBusyRef.current) return
+    loginBusyRef.current = true
+    const apply = scopeRef.current.begin()
+    setDemoPending(account)
+    setDemoProblem(null)
+    setNotice(null)
+    const controller = new AbortController()
+    demoLoginRequest(account, controller.signal).then(result => {
+      apply(() => {
+        loginBusyRef.current = false
+        setDemoPending(null)
+        if (result.ok) {
+          setLastUsername(result.value.username)
+          enterReady(result.value)
+          return
+        }
+        if (result.error.kind !== 'aborted') setDemoProblem(result.error.kind)
       })
     })
   }, [enterReady])
@@ -187,8 +234,12 @@ function AuthGate() {
           notice={notice}
           problem={problem}
           pending={loginPending}
-          disabled={loggingOut}
+          disabled={loggingOut || loginPending || demoPending !== null}
           onLogin={handleLogin}
+          demoAccounts={demoAccounts}
+          demoPending={demoPending}
+          demoProblem={demoProblem}
+          onDemoLogin={handleDemoLogin}
         />
       </>
     )
@@ -198,14 +249,14 @@ function AuthGate() {
     <>
       <div className="authbar" role="region" aria-label="Přihlášení">
         <span className="authbar__label"><Icon name="person" />Přihlášeno: {identity.username}</span>
-        <span className="authbar__detail">Role {identity.role} určuje server. Volba pohledu je pouze zobrazení.</span>
+        <span className="authbar__detail">Přihlášení ověřuje server. Zobrazení určuje vaše role.</span>
         <span className="authbar__actions">
           <button type="button" className="btn btn--secondary" onClick={handleLogout} disabled={loggingOut}>
             {loggingOut ? 'Odhlašování…' : 'Odhlásit'}
           </button>
         </span>
       </div>
-      <App key={generation} boot={boot} authed />
+      <App key={generation} boot={boot} authed lockedView={demoView} />
     </>
   )
 }

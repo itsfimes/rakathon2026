@@ -40,7 +40,7 @@ type Boot =
   | { readonly status: 'session'; readonly session: Session }
 
 /** Composition root. Receives the one bootstrapped session promise (created once per page). */
-export function App({ boot, authed }: { readonly boot: Promise<BootstrapResult>; readonly authed?: boolean }) {
+export function App({ boot, authed, lockedView }: { readonly boot: Promise<BootstrapResult>; readonly authed?: boolean; readonly lockedView?: ViewId | null }) {
   const [state, setState] = useState<Boot>({ status: 'starting' })
   useEffect(() => {
     let active = true
@@ -68,7 +68,12 @@ export function App({ boot, authed }: { readonly boot: Promise<BootstrapResult>;
 
   const workspace = useWorkspace(gateway, version)
   const nav = useView()
-  const { route, view, navigationId, navigated, focus, restoration, navigate, returnToList, resetNavigation } = nav
+  const { navigationId, navigated, focus, restoration, navigate, returnToList, resetNavigation } = nav
+  const route = lockedView && nav.route.view !== lockedView ? roleRoute(lockedView) : nav.route
+  const view = route.view
+  useEffect(() => {
+    if (lockedView && nav.route.view !== lockedView) navigate(roleRoute(lockedView), { replace: true })
+  }, [lockedView, nav.route, navigate])
   const routeIdentity = routeKey(route)
   // Patient preview: the last case a clinician explicitly opened and that loaded fresh; else the default.
   const [previewId, setPreviewId] = useState<string | null>(null)
@@ -196,7 +201,7 @@ export function App({ boot, authed }: { readonly boot: Promise<BootstrapResult>;
       <ModeStrip ref={stripRef} state={strip} feedback={actions.feedback} />
       <AppBar ref={appbarRef} view={view} asOf={workspace.status === 'ready' ? workspace.value.asOf : null} demo={session?.mode === 'mock'}
         assistantOpen={assistantOpen} onAssistant={() => { setRouteClosed(false); setAssistantOpen(true) }} assistantRef={assistantTrigger}
-        onRole={target => navigate(roleRoute(target))} onAbout={showAbout} />
+        onAbout={showAbout} />
       <main id="obsah" className="content" tabIndex={-1}>
         <section className={view === 'pacient' ? 'view view--patient' : 'view'} id={view} aria-labelledby={`t-${view}`}>
           <DetailScopeProvider value={detailScope}>{route.page === 'invalid-view'

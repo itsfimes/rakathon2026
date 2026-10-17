@@ -35,6 +35,7 @@ from rakathon_backend.runtime.iris_fhir import IRIS_FHIR_MODE, build_iris_fhir_a
 from rakathon_backend.runtime.screening_cmds import archive_store_from_env
 from rakathon_backend.web.auth_bridge import AuthBridge
 from rakathon_backend.web.config import WebConfig, load_proxy_key
+from rakathon_backend.web.demo_login import DemoLoginConfig, load_demo_login_file
 from rakathon_backend.web.edge import build_login_callables
 from rakathon_backend.web.router import AuthHTTPRouter
 from rakathon_backend.web.server import build_server, check_bind_host, serve_forever
@@ -61,6 +62,10 @@ async def cmd_auth_serve(args: argparse.Namespace) -> int:
     if auth_store not in ("demo", "iris"):
         print(json.dumps({"error": "auth-store is required: demo or iris"}))
         return 2
+    demo_file = str(getattr(args, "demo_login_file", "") or "")
+    if demo_file and auth_store != "demo":
+        print(json.dumps({"error": "demo-login-file requires --auth-store demo"}))
+        return 2
     auth_dir = Path(str(getattr(args, "auth_dir", "") or ""))
     if not str(auth_dir):
         print(json.dumps({"error": "auth-dir is required"}))
@@ -83,6 +88,13 @@ async def cmd_auth_serve(args: argparse.Namespace) -> int:
     except ContractError as exc:
         print(json.dumps({"error": exc.code, "message": exc.message}))
         return 1
+    demo: DemoLoginConfig | None = None
+    if demo_file:
+        try:
+            demo = load_demo_login_file(demo_file)
+        except ContractError as exc:
+            print(json.dumps({"error": exc.code, "message": exc.message}))
+            return 1
     storage = str(getattr(args, "storage", "mock") or "mock")
     if storage not in ("mock", IRIS_FHIR_MODE):
         print(json.dumps({"error": "storage must be mock or iris-fhir"}))
@@ -178,7 +190,7 @@ async def cmd_auth_serve(args: argparse.Namespace) -> int:
     login, resolve, csrf_for, logout = build_login_callables(
         B7SocketClient(runtime_dir, tokens[WEB_SOURCE])
     )
-    router = AuthHTTPRouter(web_config, proxy_key, login, resolve, csrf_for, logout)
+    router = AuthHTTPRouter(web_config, proxy_key, login, resolve, csrf_for, logout, demo=demo)
     binding_root = secrets.token_bytes(32)
 
     def _assistant_ready() -> bool:

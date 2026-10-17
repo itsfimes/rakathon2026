@@ -105,7 +105,7 @@ describe('roles, lists, case pages and history', () => {
     await go('lekar')
     const heading = await screen.findByRole('heading', { level: 1, name: 'Lékař: ukázkový seznam případů' })
     await waitFor(() => expect(heading).toHaveFocus())
-    expect(screen.getByRole('link', { name: 'Lékař' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText(/Pohled:/)).toHaveTextContent('Lékař')
     await go('obsah')
     expect(screen.getByRole('heading', { level: 1, name: 'Lékař: ukázkový seznam případů' })).toBeInTheDocument()
     await go('')
@@ -158,8 +158,7 @@ describe('roles, lists, case pages and history', () => {
     expect(await screen.findByRole('heading', { level: 1, name: /Pan Novák/ })).toBeInTheDocument()
   })
 
-  it('role link from a detail reaches that role list; malformed and unknown IDs are honest, never a default case', async () => {
-    const user = userEvent.setup()
+  it('a hash return from a detail reaches that role list; malformed and unknown IDs are honest, never a default case', async () => {
     window.history.replaceState(null, '', '/#lekar/case/%E0%A4%A')
     render(<App boot={mockBoot()} />)
     expect(await screen.findByText('Neplatný odkaz na případ')).toBeInTheDocument()
@@ -168,7 +167,7 @@ describe('roles, lists, case pages and history', () => {
     await go('koordinator/case/neexistuje')
     expect(await screen.findByText('Případ nebyl nalezen')).toBeInTheDocument()
     expect(screen.queryByText(/Jan Novák/)).toBeNull()
-    await user.click(screen.getByRole('link', { name: 'Koordinátor' }))
+    await go('koordinator')
     expect(window.location.hash).toBe('#koordinator')
     expect(await screen.findByRole('heading', { level: 1, name: 'Koordinátor: fronta případů' })).toBeInTheDocument()
   })

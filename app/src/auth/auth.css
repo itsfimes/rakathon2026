@@ -16,6 +16,16 @@
   .authgate { max-width: 34rem; margin: var(--s-7) auto; padding: 0 var(--s-5); display: grid; gap: var(--s-4); }
   .authgate__lead { color: var(--c-ink-muted); font-size: var(--fs-sm); max-width: var(--measure); }
   .authgate form { display: grid; gap: var(--s-3); }
+  .authgate__roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); margin-top: var(--s-3); }
+  .authgate__role { display: grid; gap: var(--s-1); align-content: start; min-height: var(--target-touch); padding: var(--s-2) var(--s-3);
+    border: var(--border) solid var(--c-line-strong); border-radius: var(--radius); background: var(--c-surface);
+    font: inherit; text-align: left; cursor: pointer; color: var(--c-ink); }
+  .authgate__role:hover:not(:disabled) { background: var(--c-surface-sunken); }
+  .authgate__role:disabled { cursor: wait; opacity: 0.7; }
+  .authgate__role:focus-visible { outline: var(--focus-width) solid var(--c-focus); outline-offset: var(--focus-offset); }
+  .authgate__role-name { display: flex; align-items: center; gap: var(--s-2); font-weight: var(--fw-medium); }
+  .authgate__role-hint { font-size: var(--fs-xs); color: var(--c-ink-muted); }
+  .authgate__role-go { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--c-accent); }
   .authgate__error {
     display: flex; gap: var(--s-2); align-items: flex-start;
     padding: var(--s-3); border-radius: var(--radius);
@@ -29,6 +39,7 @@
     .authbar { padding: var(--s-1) var(--s-3); }
     .authbar__detail { display: none; }
     .authgate { margin: var(--s-5) auto; padding: 0 var(--s-3); }
+    .authgate__roles { grid-template-columns: minmax(0, 1fr); }
     .authgate .btn { min-height: var(--target-touch); }
   }
 }

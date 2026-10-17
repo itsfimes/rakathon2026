@@ -134,6 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
     aserve.add_argument("--port", type=int, default=8765)
     aserve.add_argument("--storage", choices=("mock", "iris-fhir"), default="mock")
     aserve.add_argument("--runtime-dir", default=None)
+    aserve.add_argument("--demo-login-file", default=None)
     aserve.add_argument(
         "--assistant",
         "--assistant-enable",

@@ -1,5 +1,5 @@
 import { authSessionFrom } from './contracts'
-import type { AuthIdentity, AuthResult, AuthSession } from './contracts'
+import type { AuthIdentity, AuthResult, AuthSession, DemoAccount } from './contracts'
 
 const LOGIN_HEADER = 'X-Rakathon-Auth'
 const CSRF_HEADER = 'X-CSRF-Token'
@@ -45,12 +45,30 @@ export async function fetchAuthSession(signal?: AbortSignal): Promise<AuthResult
     return aborted(signal) ? { ok: false, error: { kind: 'aborted', retryAfter: null } } : { ok: false, error: { kind: 'unavailable', retryAfter: null } }
   }
   if (aborted(signal)) return { ok: false, error: { kind: 'aborted', retryAfter: null } }
-  if (response.status === 401) return { ok: true, value: { authenticated: false } }
+  if (response.status === 401) return fromStaleUnauthorized(await readJson(response))
   if (response.status === 429) return { ok: false, error: { kind: 'limited', retryAfter: retryAfter(response) } }
   if (response.status !== 200) return { ok: false, error: { kind: 'unavailable', retryAfter: null } }
   const session = authSessionFrom(await readJson(response))
   if (!session) return { ok: false, error: { kind: 'unavailable', retryAfter: null } }
   return { ok: true, value: session }
+}
+
+function fromStaleUnauthorized(data: unknown): AuthResult<AuthSession> {
+  if (data === null || data === undefined) return { ok: true, value: { authenticated: false } }
+  const session = authSessionFrom(data)
+  if (session) {
+    if (session.authenticated) return { ok: false, error: { kind: 'unavailable', retryAfter: null } }
+    return { ok: true, value: session }
+  }
+  if (isLegacyUnauthorized(data)) return { ok: true, value: { authenticated: false } }
+  return { ok: false, error: { kind: 'unavailable', retryAfter: null } }
+}
+
+function isLegacyUnauthorized(data: unknown): boolean {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return false
+  const record = data as Record<string, unknown>
+  if (typeof record.error !== 'string' || !record.error) return false
+  return record.authenticated === undefined
 }
 
 export async function loginRequest(username: string, password: string, signal?: AbortSignal): Promise<AuthResult<AuthIdentity>> {
@@ -72,7 +90,30 @@ export async function loginRequest(username: string, password: string, signal?: 
   if (response.status !== 200) return { ok: false, error: { kind: 'unavailable', retryAfter: null } }
   const session = authSessionFrom(await readJson(response))
   if (!session || !session.authenticated) return { ok: false, error: { kind: 'unavailable', retryAfter: null } }
-  return { ok: true, value: { ...session.user, csrfToken: session.csrfToken } }
+  return { ok: true, value: { ...session.user, csrfToken: session.csrfToken, ...(session.demoView ? { demoView: session.demoView } : {}) } }
+}
+
+export async function demoLoginRequest(account: DemoAccount, signal?: AbortSignal): Promise<AuthResult<AuthIdentity>> {
+  if (aborted(signal)) return { ok: false, error: { kind: 'aborted', retryAfter: null } }
+  let response: Response
+  try {
+    response = await request('/api/v1/auth/demo-login', {
+      method: 'POST',
+      headers: baseHeaders({ 'Content-Type': 'application/json', [LOGIN_HEADER]: '1' }),
+      body: JSON.stringify({ account }),
+    }, signal)
+  } catch {
+    return aborted(signal) ? { ok: false, error: { kind: 'aborted', retryAfter: null } } : { ok: false, error: { kind: 'unavailable', retryAfter: null } }
+  }
+  if (aborted(signal)) return { ok: false, error: { kind: 'aborted', retryAfter: null } }
+  if (response.status === 401) return { ok: false, error: { kind: 'invalid', retryAfter: null } }
+  if (response.status === 400) return { ok: false, error: { kind: 'invalid', retryAfter: null } }
+  if (response.status === 429) return { ok: false, error: { kind: 'limited', retryAfter: retryAfter(response) } }
+  if (response.status !== 200) return { ok: false, error: { kind: 'unavailable', retryAfter: null } }
+  const session = authSessionFrom(await readJson(response))
+  if (!session || !session.authenticated) return { ok: false, error: { kind: 'unavailable', retryAfter: null } }
+  if (session.demoView !== account) return { ok: false, error: { kind: 'unavailable', retryAfter: null } }
+  return { ok: true, value: { ...session.user, csrfToken: session.csrfToken, ...(session.demoView ? { demoView: session.demoView } : {}) } }
 }
 
 export async function logoutRequest(csrfToken: string, signal?: AbortSignal): Promise<AuthResult<null>> {

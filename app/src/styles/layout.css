@@ -22,6 +22,7 @@
   .brand { display: flex; align-items: center; gap: var(--s-2); font-weight: var(--fw-bold); font-size: var(--fs-md); margin-right: var(--s-2); }
   .brand .icon { color: var(--c-accent); width: var(--icon-brand); height: var(--icon-brand); }
   .demo-tag { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--c-ink-muted); display: inline-flex; gap: var(--s-1); align-items: center; }
+  .appbar__role { display: inline-flex; align-items: center; gap: var(--s-1); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--c-ink); margin: 0; }
   .roles { flex: 1 1 auto; min-width: 0; display: flex; gap: var(--s-3); align-items: center; }
   .roles__scroll { overflow-x: auto; max-width: 100%; padding: calc(var(--focus-width) + var(--border)); }
   .appbar__date { color: var(--c-ink-muted); font-size: var(--fs-xs); margin-left: auto; }

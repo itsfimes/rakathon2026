@@ -3,7 +3,9 @@ import type { FormEvent } from 'react'
 import { Field, Input } from '../../components/ui/Field'
 import { Notice } from '../../components/ui/Notice'
 import { Panel, PanelBody } from '../../components/ui/Panel'
-import type { AuthFailureKind } from '../../auth/contracts'
+import { Icon } from '../../icons/Icon'
+import { VIEW_LINKS } from '../../lib/roles'
+import type { AuthFailureKind, DemoAccount } from '../../auth/contracts'
 
 interface LoginViewProps {
   readonly initialUsername: string
@@ -12,6 +14,10 @@ interface LoginViewProps {
   readonly pending: boolean
   readonly disabled: boolean
   readonly onLogin: (username: string, password: string) => void
+  readonly demoAccounts?: readonly DemoAccount[] | null
+  readonly demoPending?: DemoAccount | null
+  readonly demoProblem?: AuthFailureKind | null
+  readonly onDemoLogin?: (account: DemoAccount) => void
 }
 
 function problemText(problem: AuthFailureKind): string {
@@ -20,7 +26,19 @@ function problemText(problem: AuthFailureKind): string {
   return 'Přihlášení se nezdařilo. Zkontrolujte jméno a heslo a zkuste to znovu.'
 }
 
-export function LoginView({ initialUsername, notice, problem, pending, disabled, onLogin }: LoginViewProps) {
+function demoProblemText(problem: AuthFailureKind): string {
+  if (problem === 'limited') return 'Příliš mnoho pokusů. Zkuste to prosím za chvíli znovu.'
+  return 'Ukázkový účet nyní není dostupný. Zkuste to prosím znovu.'
+}
+
+const ROLE_HINT: Readonly<Record<DemoAccount, string>> = {
+  pacient: 'Co mě čeká, kdy a kde',
+  koordinator: 'Fronta případů a další kroky',
+  lekar: 'Odeslané případy a závěry',
+  mdt: 'Příprava a jednání komise',
+}
+
+export function LoginView({ initialUsername, notice, problem, pending, disabled, onLogin, demoAccounts, demoPending, demoProblem, onDemoLogin }: LoginViewProps) {
   const [username, setUsername] = useState(initialUsername)
   const [password, setPassword] = useState('')
 
@@ -31,8 +49,38 @@ export function LoginView({ initialUsername, notice, problem, pending, disabled,
     setPassword('')
   }
 
+  const cards = demoAccounts && demoAccounts.length > 0 && onDemoLogin
+    ? [...VIEW_LINKS].filter(item => (demoAccounts as readonly string[]).includes(item.id))
+    : []
+
   return (
     <main className="authgate" aria-labelledby="auth-title">
+      {cards.length > 0 && (
+        <Panel id="demo-title" title="Ukázkové přihlášení" icon="team" meta="Jedním kliknutím">
+          <PanelBody>
+            <p className="authgate__lead">Vyberte si ukázkovou roli. Každé tlačítko rovnou přihlásí příslušný ukázkový účet.</p>
+            {demoProblem && !demoPending && (
+              <p className="authgate__error" role="alert">{demoProblemText(demoProblem)}</p>
+            )}
+            <div className="authgate__roles">
+              {cards.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="authgate__role"
+                  disabled={disabled || demoPending !== null}
+                  aria-busy={demoPending === item.id}
+                  onClick={() => onDemoLogin?.(item.id as DemoAccount)}
+                >
+                  <span className="authgate__role-name"><Icon name={item.icon} small />{item.label}</span>
+                  <span className="authgate__role-hint">{ROLE_HINT[item.id as DemoAccount]}</span>
+                  <span className="authgate__role-go">{demoPending === item.id ? 'Přihlašování…' : 'Pokračovat'}</span>
+                </button>
+              ))}
+            </div>
+          </PanelBody>
+        </Panel>
+      )}
       <Panel id="auth-title" title="Přihlášení" icon="person" meta="Přístup ke sdílenému případu">
         <PanelBody>
           <p className="authgate__lead">Zadejte své přihlašovací jméno ve tvaru jméno.příjmení a heslo, které vám přidělil správce.</p>
