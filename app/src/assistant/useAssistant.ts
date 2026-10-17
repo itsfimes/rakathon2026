@@ -2,40 +2,38 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import type { Session } from '../data/contracts'
 import type { ViewId } from '../lib/roles'
 import { ASSISTANT_LIMITS } from './contracts'
-import type { AssistantBinding, AssistantContext, AssistantReply, AssistantRequest } from './contracts'
-import { isAssistantRole, validContext, validReply, validRequest } from './validation'
+import type { AssistantReply, AssistantRequest } from './contracts'
+import { isAssistantRole, validReply, validRequest } from './validation'
 
 export interface AssistantOptions {
   readonly session: Session | null
   readonly view: ViewId
-  /** Local invalidation keys ONLY; these are never request fields. */
+  /** Exact currently selected case, also sent for server-side authorized record collection. */
   readonly caseId: string | null
   readonly version: number
   readonly resetKey?: number
   readonly scopeKey?: string
   readonly open: boolean
   readonly contextFresh: boolean
-  readonly context: AssistantContext | null
-  readonly binding?: AssistantBinding | undefined
 }
 export type AssistantMessage = { readonly kind: 'user'; readonly text: string } | { readonly kind: 'assistant'; readonly reply: AssistantReply }
 interface State {
   readonly scope: AssistantOptions
   readonly input: string
   readonly messages: readonly AssistantMessage[]
-  readonly contextSelected: boolean
   readonly pending: boolean
   readonly error: string | null
 }
 
-const empty = (scope: AssistantOptions): State => ({ scope, input: '', messages: [], contextSelected: false, pending: false, error: null })
+const empty = (scope: AssistantOptions): State => ({ scope, input: '', messages: [], pending: false, error: null })
 const sameScope = (a: AssistantOptions, b: AssistantOptions) => a.session === b.session && a.view === b.view
-  && a.caseId === b.caseId && a.version === b.version && a.resetKey === b.resetKey && a.scopeKey === b.scopeKey && a.open === b.open && a.contextFresh === b.contextFresh && a.binding?.token === b.binding?.token
+  && a.caseId === b.caseId && a.version === b.version && a.resetKey === b.resetKey && a.scopeKey === b.scopeKey && a.open === b.open && a.contextFresh === b.contextFresh
 
 export const ASSISTANT_FAILURE_MESSAGE = 'Odpověď není k dispozici. Zkuste požadavek znovu.'
 export const ASSISTANT_UNAVAILABLE_MESSAGE = 'Asistent není připojen. Žádný požadavek nebyl odeslán.'
+export const ASSISTANT_CONTEXT_TOO_LARGE_MESSAGE = 'Úplný záznam vybraného pacienta je příliš rozsáhlý pro odeslání do Azure AI. Žádná data nebyla zkrácena a dotaz nebyl předán AI. Obraťte se na správce.'
 
-/** In-memory, explicit-send controller. Context preview is the exact field projection sent. */
+/** In-memory, explicit-send controller. The server collects the selected patient's record. */
 export function useAssistant(options: AssistantOptions) {
   const [stored, setState] = useState<State>(() => empty(options))
   let state = stored
@@ -45,15 +43,11 @@ export function useAssistant(options: AssistantOptions) {
     setState(state)
   }
   const active = useRef<AbortController | null>(null)
-  const { session, view, caseId, version, resetKey, scopeKey, open, contextFresh, context, binding } = options
+  const { session, view, caseId, version, resetKey, scopeKey, open, contextFresh } = options
   useLayoutEffect(() => () => {
     active.current?.abort()
     active.current = null
-  }, [session, view, caseId, version, resetKey, scopeKey, open, contextFresh, binding?.token])
-
-  const contextAvailable = open && caseId !== null && contextFresh && !!context && context.role === view && validContext(context)
-  const contextPreview = contextAvailable ? context : null
-  const selectedContext = state.contextSelected ? contextPreview : null
+  }, [session, view, caseId, version, resetKey, scopeKey, open, contextFresh])
   const assistant = session?.assistant
   const available = assistant?.availability === 'available' && isAssistantRole(view)
 
@@ -75,9 +69,6 @@ export function useAssistant(options: AssistantOptions) {
       ? { ...previous, error: `Dotaz může mít nejvýše ${ASSISTANT_LIMITS.input} znaků.` }
       : { ...previous, input, error: null })
   }
-  function selectContext(selected: boolean) {
-    setState(previous => ({ ...previous, contextSelected: selected && contextAvailable }))
-  }
   async function send(text = state.input): Promise<void> {
     if (!open || active.current || !isAssistantRole(view)) return
     if (!assistant || assistant.availability !== 'available') {
@@ -90,8 +81,7 @@ export function useAssistant(options: AssistantOptions) {
     }
     const request: AssistantRequest = {
       role: view, text: text.trim(),
-      ...(selectedContext ? { context: Object.freeze({ role: selectedContext.role, fields: Object.freeze(selectedContext.fields.map(field => Object.freeze({ ...field }))) }) } : {}),
-      ...(selectedContext && binding ? { binding: Object.freeze({ caseId: binding.caseId, token: binding.token }) } : {}),
+      ...(caseId !== null ? { caseId } : {}),
     }
     if (text.length > ASSISTANT_LIMITS.input || !validRequest(request)) {
       setState(previous => ({ ...previous, error: `Zadejte dotaz o 1 až ${ASSISTANT_LIMITS.input} znacích.` }))
@@ -104,11 +94,12 @@ export function useAssistant(options: AssistantOptions) {
     try {
       const result = await assistant.send(request, controller.signal)
       if (!current()) return
-      if (result.ok && validReply(result.value, request, assistant.provenance)) {
-        const reply: AssistantReply = Object.freeze({ provenance: result.value.provenance, text: result.value.text, sources: Object.freeze([...result.value.sources]) })
+      if (result.ok && validReply(result.value, assistant.provenance)) {
+        const reply: AssistantReply = Object.freeze({ ...result.value, sources: Object.freeze([...result.value.sources]),
+          coverage: Object.freeze({ ...result.value.coverage, failedTypes: Object.freeze([...result.value.coverage.failedTypes]) }) })
         setState(previous => ({ ...previous, pending: false, messages: [...previous.messages, { kind: 'assistant', reply }] }))
       } else {
-        setState(previous => ({ ...previous, pending: false, error: ASSISTANT_FAILURE_MESSAGE }))
+        setState(previous => ({ ...previous, pending: false, error: !result.ok && result.error.code === 'context_too_large' ? ASSISTANT_CONTEXT_TOO_LARGE_MESSAGE : ASSISTANT_FAILURE_MESSAGE }))
       }
     } catch {
       if (current()) setState(previous => ({ ...previous, pending: false, error: ASSISTANT_FAILURE_MESSAGE }))
@@ -118,8 +109,8 @@ export function useAssistant(options: AssistantOptions) {
   }
   return {
     input: state.input, messages: state.messages, pending: state.pending, error: state.error,
-    contextAvailable, contextPreview, selectedContext, contextSelected: !!selectedContext,
+    caseId,
     available, provenance: assistant?.provenance ?? 'none',
-    setInput, selectContext, send, stop, clear, close: clear,
+    setInput, send, stop, clear, close: clear,
   }
 }

@@ -78,12 +78,14 @@ POST requires an explicit allowed Origin and exact JSON content type, one
 positive Content-Length <=16384 bytes, no transfer encoding/Expect, duplicate
 keys/constants or unknown fields. Body: `{role,text}` for general questions (no
 patient reads), or `{role,text,caseId}` for the currently selected patient.
-`caseId` matches `^[A-Za-z0-9.-]{1,64}$`. Roles:
+`caseId` matches `^[A-Za-z0-9.-]{1,64}$` and contains at least one alphanumeric.
+The browser sends only an explicit selection, never a workspace-default preview. Roles:
 `koordinator|pacient|lekar|mdt` affect presentation only, not data access.
 Limits: input1000/output12000 characters. No history/tasks/persistence.
 Client-supplied `context`, `binding`, `userId` and other unknown keys are rejected.
-Only one assistant submission at a time (429 when busy); facade deadline80s,
-HTTP wait85s, browser deadline90s. Browser abort suppresses stale replies but
+Only one assistant submission at a time (429 when busy); collection deadline20s,
+provider deadline60s, facade deadline83s (including assembly overhead), HTTP/auth
+bridge wait85s, browser deadline90s. Browser abort suppresses stale replies but
 does not prove IPC/provider immediate cancellation; existing B5 kill/deadline
 bounds remain active. Errors contain stable safe codes/messages only.
 
@@ -125,6 +127,9 @@ Immunization, FamilyMemberHistory, ClinicalImpression, CareTeam, Goal, Specimen,
 ImagingStudy, Composition and QuestionnaireResponse. The adapter does not expose
 `$everything`; per-type searches use its existing same-origin/base-boundary,
 cycle-protected pagination (50/page, at most10 pages, 500 resources/type).
+Next links must keep the original resource path and cannot change explicit
+patient/subject/_id filters; opaque cursor-only queries remain supported.
+At most5 type searches run concurrently, under the shared collection deadline.
 Unsupported400/404 types and failed collections appear in the timestamped
 manifest; incomplete pages are never represented as complete. Read-only type
 allowances do not expand FHIR writes. Each type reply stays below the existing
@@ -137,7 +142,11 @@ never fetched. The complete original FHIR resources are retained as well.
 All owners' uploads for the authorized case are included, never other cases:
 validated transcription is labeled `transcription (unverified)`, approved
 review bundles `approved`, and available drafts `pending draft`. Collection is
-read-only and does not initialize or transition review state.
+read-only and does not initialize or transition review state. Uploads with no
+readable artifacts are counted unavailable and make coverage partial. Synchronous
+upload reads run off the event loop, use bounded encrypted-file reads and enforce
+incremental aggregate input/output byte budgets before retaining more artifacts.
+Cancellation stops subsequent reads but cannot interrupt an already-blocked syscall.
 
 The prompt contains safety instructions, manifest, canonical JSON resources,
 document text, uploads and the question. Patient data is untrusted, not
@@ -324,7 +333,7 @@ failures, errors have exactly:
 {"version": 1, "error": {"code": "not_found", "message": "Case not found"}}
 ```
 
-Stable HTTP/code pairs: 400/bad_request, 403/forbidden,
+Stable HTTP/code pairs: 400/bad_request, 403/forbidden, 413/context_too_large,
 404/not_found, 405/method_not_allowed, 503/unavailable.
 Parser-level rejection may use stdlib's bounded-header/request-line status
 with bad_request. Messages are fixed safe text, never exception strings,
@@ -334,5 +343,6 @@ upstream narratives, credentials or stack traces.
 The single-user development facade above stays explicit development-only and
 is not exposed on preview. Authenticated preview serves the same versioned
 shapes through `web/auth_bridge.py` behind `AuthHTTPRouter` with B7 identity,
-`web:auth` per-request reads, human `ai.ask` gating, view-role-only assistant
-bodies, stable per-user snapshot bindings, and a global single-AI gate.
+`web:auth` per-request reads, human `ai.ask` gating, presentation-role assistant
+bodies with optional explicit `caseId`, full authorized record egress, and a global
+single-AI gate. Client context/previews and snapshot bindings are not used.

@@ -1,4 +1,4 @@
-import type { Assistant, AssistantPreview, AssistantRole } from '../assistant/contracts'
+import type { Assistant } from '../assistant/contracts'
 import type { UploadCapability } from './backend/uploads'
 import type { ClinicalRecord } from './clinical'
 import type { CollectionCoverage } from './coverage'
@@ -138,7 +138,6 @@ export interface MdtView {
   readonly finalization: { readonly state: 'blocked'; readonly reason: string }
 }
 export interface CaseDetail {
-  readonly assistantPreview?: Readonly<Partial<Record<AssistantRole, AssistantPreview>>>
   readonly clinical?: ClinicalRecord
   readonly identity: Identity
   readonly phases: readonly Phase[]

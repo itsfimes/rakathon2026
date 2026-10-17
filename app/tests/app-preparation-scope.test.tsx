@@ -39,13 +39,12 @@ async function sendPending() {
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Asistent' }))
   const dialog = screen.getByRole('dialog', { name: 'Asistent' })
-  await user.click(within(dialog).getByRole('checkbox', { name: 'Připojit údaje případu' }))
   fireEvent.change(within(dialog).getByLabelText('Váš dotaz'), { target: { value: 'dotaz' } })
   await user.click(within(dialog).getByRole('button', { name: 'Odeslat dotaz' }))
   fireEvent.change(within(dialog).getByLabelText('Váš dotaz'), { target: { value: 'rozepsáno' } })
   return dialog
 }
-const reply: AssistantResult = { ok: true, value: { provenance: 'scripted', text: 'LATE IGNORED ANSWER', sources: [] } }
+const reply: AssistantResult = { ok: true, value: { provenance: 'scripted', text: 'LATE IGNORED ANSWER', sources: [], coverage: { status: 'general', resources: 0, uploads: 0, failedTypes: [] } } }
 beforeEach(() => {
   window.history.replaceState(null, '', '/#koordinator/case/novak/record')
   resource.detail = { status: 'idle' }; resource.workspace = { status: 'idle' }; resource.options = null
@@ -70,7 +69,7 @@ describe('App route/preparation lifecycle identity', () => {
     expect(app.pending[0]!.signal.aborted).toBe(true)
     expect(dialog).toHaveAttribute('open')
     expect(within(dialog).getByLabelText('Váš dotaz')).toHaveValue('')
-    expect(within(dialog).getByRole('checkbox')).not.toBeChecked()
+    expect(within(dialog).queryByRole('checkbox')).toBeNull()
     expect(within(dialog).queryByText('dotaz')).toBeNull()
     expect(disclosure.isConnected).toBe(false)
     expect(document.querySelector('main details[open]')).toBeNull()
@@ -85,7 +84,7 @@ describe('App route/preparation lifecycle identity', () => {
     resource.detail = { status: 'ready', value: app.detail, fresh: false }
     app.rerender(<App boot={app.boot} />)
     expect(app.pending[0]!.signal.aborted).toBe(true)
-    expect(resource.options).toMatchObject({ contextFresh: false, context: null })
+    expect(resource.options).toMatchObject({ contextFresh: false, caseId: 'novak' })
     expect(resource.options!.scopeKey).toContain('unavailable')
     expect(document.querySelector('main details')).toBeNull()
     await act(async () => app.pending[0]!.resolve(reply))
@@ -93,14 +92,14 @@ describe('App route/preparation lifecycle identity', () => {
     resource.detail = { status: 'ready', value: app.detail, fresh: true }
     app.rerender(<App boot={app.boot} />)
     expect(resource.options!.contextFresh).toBe(true)
-    expect(within(dialog).getByRole('checkbox')).not.toBeChecked()
+    expect(within(dialog).queryByRole('checkbox')).toBeNull()
   })
 
   it('a mismatched ready identity cannot become fresh context or poison the patient preview', async () => {
     const app = await setup()
     resource.detail = { status: 'ready', fresh: true, value: { ...app.detail, identity: { ...app.detail.identity, caseId: 'wrong-case' } } }
     app.rerender(<App boot={app.boot} />)
-    expect(resource.options).toMatchObject({ caseId: 'novak', contextFresh: false, context: null })
+    expect(resource.options).toMatchObject({ caseId: 'novak', contextFresh: false })
     await act(async () => {
       window.history.replaceState({}, '', '/#pacient/record')
       window.dispatchEvent(new PopStateEvent('popstate'))
@@ -124,7 +123,7 @@ describe('App route/preparation lifecycle identity', () => {
       window.dispatchEvent(new PopStateEvent('popstate'))
     })
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Potvrdit převzetí (lokálně v demu)' }))
-    expect(resource.options).toMatchObject({ contextFresh: false, context: null })
+    expect(resource.options).toMatchObject({ contextFresh: false, caseId: 'novak' })
     expect(resource.options!.scopeKey).toContain('unavailable')
     await act(async () => finish(success(undefined)))
   })

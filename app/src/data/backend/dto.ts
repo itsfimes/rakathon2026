@@ -2,7 +2,6 @@ import { collection, boolean, condition, document, id, invalid, literal, nullabl
 import type { CollectionCoverage, CoverageReason } from '../coverage'
 import type { Decoder } from './schema'
 import { validDay } from './values'
-import { assistantPreviews } from './assistantPreview'
 
 export type Coverage = CollectionCoverage
 export interface Section<T> extends Coverage { readonly items: readonly T[] }
@@ -71,7 +70,7 @@ export function caseDTO(value: unknown, expectedId: string) {
   const p = patient(v.patient)
   if (p.resourceType !== 'Patient' || p.id !== expectedId) invalid()
   const s = object(v.sections)
-  return { version: 1 as const, fetchedAt: fetchedAt(v.fetchedAt), patient: p, assistantPreview: assistantPreviews(v.assistantPreview, expectedId), sections: {
+  return { version: 1 as const, fetchedAt: fetchedAt(v.fetchedAt), patient: p, sections: {
     conditions: section(s.conditions, condition, 'Condition', expectedId),
     observations: section(s.observations, observation, 'Observation', expectedId),
     diagnosticReports: section(s.diagnosticReports, report, 'DiagnosticReport', expectedId),

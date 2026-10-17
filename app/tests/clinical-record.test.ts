@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { buildAssistantContext } from '../src/assistant/context'
 import type { ClinicalFact, IdentityPayload } from '../src/data/clinical'
 import { buildMdtPreparation } from '../src/data/mdtPreparation'
 import { createClinicalRecord, createPreparationRequirements, SYNTHETIC_MEETING } from '../src/data/mock/clinicalFixtures'
@@ -58,7 +57,6 @@ describe('clinical demonstration and provider boundary', () => {
       expect(read.value.clinical).toBeUndefined()
       expect(read.value.patient.record).toBeUndefined()
       expect(read.value.mdt.preparation).toBeUndefined()
-      expect(buildAssistantContext('mdt', read.value, true)).toBeNull()
     }
   })
 })
@@ -116,7 +114,7 @@ describe('explicit bounded patient projection', () => {
   })
 })
 
-it('MDT assistant uses only prepared document enums; poisoned live summaries/docs/new clinical fields never enter context', () => {
+it('local MDT preparation is independent of assistant server context', () => {
   const base = createSeedCases()[0]!
   const preparation = buildMdtPreparation({ record: base.clinical!, meetingId: SYNTHETIC_MEETING.id, meetingDate: SYNTHETIC_MEETING.date, requirements: createPreparationRequirements() })
   const poison = 'LATE-PRIVATE-LIVE-CONTENT'
@@ -124,9 +122,6 @@ it('MDT assistant uses only prepared document enums; poisoned live summaries/doc
     documents: base.documents.map(d => ({ ...d, state: 'missing' as const, label: poison, stateLabel: poison, sources: [{ title: poison, date: '2026-10-26' }] })),
     mdt: { ...base.mdt, finding: poison, draft: { decision: poison, uncertainties: [poison] }, preparation }, patient: { ...base.patient, record: buildPatientRecord(base.clinical)! },
   }
-  const context = buildAssistantContext('mdt', detail, true)!
-  expect(context.fields).toHaveLength(preparation.documents.length)
-  expect(context.fields.find(f => f.value.startsWith('Histologie:'))!.value).toBe('Histologie: Dostupné')
-  for (const value of [poison, 'Apixaban', 'hads', 'SYNTHETIC', 'sources', 'revision', 'conflict']) expect(JSON.stringify(context)).not.toContain(value)
-  expect(buildAssistantContext('mdt', { ...detail, mdt: base.mdt }, true)).toBeNull()
+  expect(detail.mdt.preparation).toBe(preparation)
+  expect(detail).not.toHaveProperty('assistantPreview')
 })

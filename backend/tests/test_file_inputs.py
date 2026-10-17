@@ -10,7 +10,6 @@ from typing import Any
 
 import pytest
 
-import rakathon_backend.converter.file_inputs as file_inputs_mod
 from rakathon_backend.converter.file_inputs import (
     FileInputError,
     inspect_image,

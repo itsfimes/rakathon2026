@@ -1,6 +1,5 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
-import { buildAssistantContext } from '../src/assistant/context'
 import { useAssistant } from '../src/assistant/useAssistant'
 import type { CaseDetail, Result } from '../src/data/contracts'
 import { failure, success } from '../src/data/contracts'
@@ -33,33 +32,23 @@ it('retained same-case snapshot stays visible but is not reselectable until the 
   const { result, rerender } = renderHook(({ version }: { version: number }) => {
     const resource = useResource(detail.identity.caseId, version, load)
     const fresh = resource.status === 'ready' && resource.fresh
-    const context = buildAssistantContext('pacient', resource.status === 'ready' ? resource.value : null, fresh)
-    const assistant = useAssistant({ session, caseId: detail.identity.caseId, view: 'pacient', version, open: true, contextFresh: fresh, context })
+    const assistant = useAssistant({ session, caseId: detail.identity.caseId, view: 'pacient', version, open: true, contextFresh: fresh })
     return { resource, assistant }
   }, { initialProps: { version: 0 } })
-  expect(result.current.assistant.contextAvailable).toBe(false)
+  expect(result.current.assistant.caseId).toBe(detail.identity.caseId)
   await act(async () => pending[0]!(success(detail)))
   expect(result.current.resource).toEqual({ status: 'ready', value: detail, fresh: true })
-  act(() => result.current.assistant.selectContext(true))
-  expect(result.current.assistant.contextSelected).toBe(true)
   rerender({ version: 1 })
   expect(result.current.resource).toEqual({ status: 'ready', value: detail, fresh: false })
-  act(() => result.current.assistant.selectContext(true))
-  expect(result.current.assistant.contextSelected).toBe(false)
-  expect(result.current.assistant.contextAvailable).toBe(false)
-  expect(result.current.assistant.contextPreview).toBeNull()
+  expect(result.current.assistant.messages).toEqual([])
   // A superseded refresh may finish even if its transport ignores abort.
   rerender({ version: 2 })
   await act(async () => pending[1]!(success(detail)))
-  expect(result.current.assistant.contextAvailable).toBe(false)
+  expect(result.current.assistant.caseId).toBe(detail.identity.caseId)
   const updated = { ...detail, patient: { ...detail.patient, currentInstruction: 'Nově dodaný pokyn' } }
   await act(async () => pending[2]!(success(updated)))
-  expect(result.current.assistant.contextAvailable).toBe(true)
-  expect(result.current.assistant.contextSelected).toBe(false)
-  act(() => result.current.assistant.selectContext(true))
-  expect(result.current.assistant.selectedContext?.fields[0]?.value).toBe('Nově dodaný pokyn')
+  expect(result.current.assistant.caseId).toBe(detail.identity.caseId)
   rerender({ version: 3 })
   await act(async () => pending[3]!(failure('unavailable', 'Nedostupné')))
-  expect(result.current.assistant.contextAvailable).toBe(false)
-  expect(result.current.assistant.contextSelected).toBe(false)
+  expect(result.current.assistant.caseId).toBe(detail.identity.caseId)
 })

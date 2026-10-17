@@ -4,7 +4,7 @@ import json
 import re
 import time
 from typing import Any
-from urllib.parse import SplitResult, urljoin, urlsplit
+from urllib.parse import SplitResult, parse_qs, urljoin, urlsplit
 
 import httpx
 
@@ -46,7 +46,7 @@ def _constant(value: str) -> None:
     raise ValueError("Invalid JSON constant")
 
 
-def safe_next(base: str, current: str, link: Any, state: CollectionState) -> str:
+def safe_next(base: str, current: str, link: Any, state: CollectionState, *, original: str) -> str:
     try:
         if (
             not isinstance(link, str)
@@ -84,6 +84,24 @@ def safe_next(base: str, current: str, link: Any, state: CollectionState) -> str
             or not (parsed.path == boundary or parsed.path.startswith(boundary + "/"))
         ):
             raise ValueError("Boundary")
+        search = urlsplit(original)
+        if parsed.path != search.path:
+            raise ValueError("Search endpoint")
+        initial = parse_qs(search.query, keep_blank_values=True)
+        candidate = parse_qs(parsed.query, keep_blank_values=True)
+        for key in candidate:
+            if key.split(":", 1)[0].split(".", 1)[0] in {
+                "patient",
+                "subject",
+                "_id",
+            } and key not in {"patient", "subject", "_id"}:
+                raise ValueError("Modified search filter")
+        patient = initial.get("patient") or initial.get("subject")
+        for key in ("patient", "subject", "_id"):
+            if key in candidate:
+                expected_values = patient if key in ("patient", "subject") else initial.get(key)
+                if expected_values is None or candidate[key] != expected_values:
+                    raise ValueError("Search filter")
         return target
     except ValueError as exc:
         raise _error(state, "unsafe_paging_link") from exc
@@ -149,7 +167,8 @@ def collect(
     initial = dict(params)
     initial["_count"] = str(PAGE_SIZE)
     url = str(client.build_request("GET", path, params=initial).url)
-    url = safe_next(base, url, url, state)
+    original = url
+    url = safe_next(base, url, url, state, original=original)
     visited: set[str] = set()
     identities: set[str] = set()
     resources: list[dict[str, Any]] = []
@@ -214,4 +233,4 @@ def collect(
         if not next_links:
             _remaining(state, deadline)
             return resources, state.total
-        url = safe_next(base, url, next_links[0], state)
+        url = safe_next(base, url, next_links[0], state, original=original)

@@ -29,6 +29,7 @@
       "tasks.write",
       "tasks.ack",
       "reminders.read",
+      "ai.ask",
       "document.upload",
       "document.approve"
     ],
@@ -43,7 +44,7 @@
       "document.upload",
       "document.approve"
     ],
-    "viewer": ["health", "fhir.read", "tasks.read", "reminders.read"],
+    "viewer": ["health", "fhir.read", "tasks.read", "reminders.read", "ai.ask"],
     "watchdog": ["health", "tasks.read", "reminders.read", "watchdog.tick"],
     "web-assistant": ["ai.complete"]
   },

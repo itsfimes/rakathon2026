@@ -39,8 +39,10 @@ unavailable) with no account enumeration, no signup, no password reset and no SS
 A signed-in user gets an identity bar (`Přihlášeno: jméno.příjmení`, server role,
 `Odhlásit`) above the existing workspace. Clinical reads go through the real
 facade (`GET /api/v1/session`, typed `workspace` with coverage/pagination
-counters, exact `cases/{id}` with report hierarchy); the assistant `POST`s the
-exact opt-in preview with its transport binding plus the in-memory `X-CSRF-Token`
+counters, exact `cases/{id}` with report hierarchy); the assistant `POST`s
+`{role,text,caseId?}` plus the in-memory `X-CSRF-Token`. Only an explicitly
+selected case is sent, never a workspace-default overview preview. Opening the
+patient's own record page counts as selecting the record being viewed
 (the browser sets Origin itself, the app never forges it). Partial upstream data
 stays an honest typed `unavailable` coverage envelope — never a login loop, a
 fake workspace or invented counts. An HTTP `401` on any clinical read or
@@ -173,77 +175,54 @@ Assistant stays unavailable unless the session reports the assistant capability;
 DemoControls remain mock only. Unknown cases return not-found and failures never enable mocks. Without the API
 base setting the old zero-request `backend-unconfigured` behavior remains unchanged.
 
-## Assistant phase one: headless only, not real AI
+## Assistant: authorized full selected-patient record
 
-- `src/assistant/contracts.ts`: `Assistant`, request/reply/result, role/source/field IDs,
-  fixed app-owned source/field labels and `ASSISTANT_LIMITS` (1,000 input characters,
-  6,000 output, 32 fields, 320 characters per field, 4,000 aggregate context characters,
-  8 in-memory transcript entries). `send(request, AbortSignal)` is explicit and required.
-- `src/data/backend/assistant.ts`: `UnconfiguredAssistant`, unavailable/none, zero requests.
-  `BackendAssistant` posts the exact opt-in preview with its binding to the same-origin
-  facade with the in-memory CSRF header; `401` ends the session, `403` keeps it.
-  No SDK, URL, credentials, browser keys, hidden lookup or mock fallback.
-- `src/data/mock/assistant.ts`: exact-prompt scripted demonstration, reachable only through
-  the existing mock dynamic import; every reply identifies itself as scripted, not AI.
-  The required artifact sentinel is an internal mock capability marker, never reply text.
-- `src/assistant/prompts.ts`: `ASSISTANT_PROMPTS[role]`, exact supported prompt strings.
-  Other free text gets an explicit unsupported reply, not a clinical keyword heuristic.
-- `src/assistant/context.ts`: `buildAssistantContext(view, detailOrNull, fresh)` returns
-  an immutable minimal `{role, fields}` or null. Oversize projection fails closed, not
-  silently truncated. No identity/age/diagnosis/full case/excerpts/history/local identifier
-  fields are selected. Coordinator and MDT document entries use fixed app-owned labels
-  mapped from document `kind` and `state` enums only; document labels/state labels and all
-  source metadata (including titles/dates/pages) are omitted. Existing field/source IDs
-  stay unchanged, and preview remains the exact payload. Other supplied free text, such
-  as task titles and patient instructions, still requires upstream minimization.
-- `src/assistant/useAssistant.ts`: `useAssistant(options)` returns `input`, `messages`,
-  `pending`, fixed safe `error`, `available`, `provenance`, `contextAvailable`,
-  `contextPreview`, `selectedContext`, `contextSelected`, and actions `setInput`,
-  `selectContext`, `send`, `stop`, `clear`, `close`. No persistence/logging/automatic sends.
+The configured backend assistant is real server-side Azure/direct AI. An explicit send
+posts `{role,text,caseId?}` to the same-origin facade with the in-memory CSRF header.
+`role` changes presentation only. `caseId` matches `^[A-Za-z0-9.-]{1,64}$` and must
+contain an alphanumeric character. With no explicit patient selection it is omitted:
+the workspace's default overview preview must never become assistant context. Opening
+`pacient/record` explicitly selects the patient's record being viewed, including its
+resolved patient ID. Coordinator/doctor/MDT case details select their route case ID;
+all four roles can use the assistant, and list/overview pages use general mode. Opening,
+typing, loading or refreshing never sends automatically. No history or local revision,
+session or scope keys are transmitted. Old `context`/`binding` fields are rejected.
 
-### Exact designer wiring recipe (UI deliberately deferred)
+The dialog discloses that sending with a selected case transmits that patient's full
+available record to Azure AI, including identifying/health information, full FHIR,
+readable inline documents and upload transcriptions. The server first authorizes the
+Patient read under the human's identity, then assembles all supported compartment
+types, preserving narratives/notes/conclusions. Same-case uploads from all owners are
+included with unverified transcription, approved and pending-draft trust labels.
+External attachment URLs are not fetched. This is not anonymized or metadata-only.
+Provider keys/SDKs remain server-side; no `VITE_*` credentials or mock fallback.
+Browser selection/disclosure is not authorization or a substitute for lawful consent,
+retention policy, governance and clinical evaluation.
 
-1. Own `open` in the shell; call the hook unconditionally with current `session`, `view`,
-   selected `caseId`, demo mutation `version`, `open`, and an optional numeric `resetKey`
-   if reset must clear immediately before a mutation completes. A version change already
-   clears/aborts. Session identity must be stable, not a fresh object every render.
-2. From `useCaseDetail`, derive `fresh = detail.status === 'ready' && detail.fresh`.
-   Pass the same `fresh` to `buildAssistantContext(view, readyDetailOrNull, fresh)` AND
-   hook `contextFresh`. Use the same selected case ID and version as that resource;
-   never substitute queue data or another case's ready value. `ResourceState.ready.fresh`
-   is false while the previous same-case snapshot remains on screen during refresh.
-   Stale snapshots cannot be reselected; failed refresh remains unavailable. Do not infer
-   freshness from `status === 'ready'` alone.
-3. `contextSelected` starts false. Render `contextPreview.fields` **exactly** using
-   `ASSISTANT_FIELD_LABELS[field.key]` and `field.value` as plain text. This is the entire
-   context payload, with typed `source` IDs and role; do not add other fields to request
-   or preview. Checkbox calls `selectContext(checked)`, disabled unless `contextAvailable`.
-   A local selected-case label may be displayed after opt-in but is not transmitted.
-4. Explicit form submit calls `send()`; suggested prompt action calls `send(prompt)`
-   (or sets input for user review). Input `maxLength=ASSISTANT_LIMITS.input`; only one
-   pending send is allowed. Nothing sends on opening, typing, selecting context or refresh.
-   History is display-only and never transmitted. `stop()` aborts safely without erasing
-   visible history; `clear()` clears input/history/context and aborts. Limit reached means
-   clear before another send, never silent history truncation.
-5. Close/Escape/native-dialog cancel calls `close()` AND sets `open=false`. Case/view/
-   version/session/reset/freshness changes and unmount abort pending work and clear state;
-   late replies are discarded even when transport ignores abort. Controlled closing alone
-   also clears state. Native modal focus/inertness/focus return and navigation-close-before-
-   focus remain the designer's responsibility. No UI/CSS changes are included here.
-6. Render user text and `message.reply.text` as plain text only. Each reply carries
-   `reply.provenance`; keep scripted vs real/unavailable visible. Sources are only
-   `reply.sources` mapped through `ASSISTANT_SOURCE_LABELS`, with no arbitrary hrefs,
-   selectors, evidence-approval claims or tool actions. No navigation targets are promised.
-   Keep source-mode strip/provenance visible in the modal too.
+Request input is at most1,000 characters, reply text at most12,000, with8 in-memory
+transcript entries. The server caps the final prompt at900,000 UTF-8 bytes (configurable
+downward), with incremental collection/upload budgets and no silent truncation.
+HTTP413 `context_too_large` displays a fixed Czech explanation and never dispatches AI.
+Collection has a20s deadline with at most5 concurrent type searches, provider requests
+at most60s, facade83s, HTTP/auth bridge85s and browser90s. Cancellation discards stale
+answers; it cannot interrupt an already-blocked synchronous syscall immediately.
 
-For a future real adapter, supply a vendor-neutral authenticated same-origin server
-contract first, implement the capability with `availability: 'available', provenance:
-'server'`, validate bounded schemas, normalize failures and honor AbortSignal. Backend
-authorization, minimization, retention, rate limits, evaluation and governance approval
-are prerequisites; browser role and opt-in are not authorization or legal consent. Never
-send hidden case/history enrichment. Structural allowlists cannot detect names/PHI inside
-otherwise approved free-text fields; upstream text needs its own minimization policy.
-No real AI is currently implemented. Research/limits: `../assistant-research.md`.
+Replies are `{provenance:"server",text,sources,coverage}`. `sources` contains at most50
+server-provided `ResourceType/id` or `upload/id` labels, not approved evidence claims or
+links. `coverage` reports `general|complete|partial`, resource/upload counts, failed types,
+unreadable attachments and uploads with unavailable artifacts. Empty/unreadable uploads
+make coverage partial. Render answers and source labels as plain text, never HTML or
+tool actions. There is no case `assistantPreview`, field allowlist or snapshot binding.
+
+`useAssistant` keeps input/transcript only in memory. Its `caseId` is the explicit
+selection, separate from page-preview defaults. Case/view/version/session/reset/scope/
+freshness changes, close and unmount clear/abort; replies from superseded requests are
+ignored even if transport ignores abort. `stop` preserves visible history; `clear` and
+`close` clear it. `401` ends the session, `403` keeps it. Unconfigured deployments stay
+unavailable and send no request. The isolated mock remains clearly labeled scripted,
+recognizes exact suggestions only, does not read full records and never sends to Azure.
+See `../backend/docs/web.md` for the server policy and `../assistant-research.md` for
+historical research and governance boundaries.
 
 ## UI structure (React)
 

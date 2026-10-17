@@ -35,7 +35,27 @@ No UI is implemented in phase one.
   minimization, purpose and retention principles. Local legal applicability and lawful
   basis must be assessed separately; context opt-in is not a legal consent mechanism.
 
-## What exists and what does not
+## Current contract and policy (supersedes the historical notes below)
+
+The configured assistant now uses authenticated same-origin
+`POST /api/v1/assistant` with `{role,text,caseId?}`. `role` is presentation only;
+`caseId` is sent only for an explicitly selected patient, never a default preview.
+Without it, the question is general and no patient data is read. The human's Patient
+read is authorized before the server assembles the full available record: unprojected
+FHIR, readable inline document text and same-case uploads from all owners. Identifiers,
+notes and conclusions are included and sent to Azure/direct AI; this is not anonymized.
+External document URLs are not fetched. The dialog discloses this egress policy.
+
+Replies are `{provenance:"server",text,sources,coverage}` with at most12,000 characters
+and50 included resource/upload labels. Coverage reports missing collections and
+unreadable/empty upload artifacts. No field previews, client context or snapshot bindings
+remain. Prompt and incremental collection budgets reject oversized context with413
+`context_too_large`, never truncate. Collection20s, provider60s, facade83s, bridge85s
+and browser90s bound dispatch. Local transcripts are not sent or persisted; stale replies
+are discarded. Provider consent, retention, legal basis, governance and clinical accuracy
+still require separate assessment. Prompt safety wording is not an authorization boundary.
+
+## Historical phase-one design — no longer the implemented policy
 
 Phase one supplies a required `Session.assistant` capability separate from `Gateway`,
 bounded DTOs, exact field-preview projection, an in-memory headless hook, unavailable
@@ -58,7 +78,7 @@ free text, including task titles, patient instructions, organization strings and
 details, still needs upstream minimization. The user's own question may contain sensitive
 text; no actual external endpoint is configured.
 
-## Server and governance boundary
+## Historical server/governance proposal (superseded; concerns remain applicable)
 
 Before enabling any real provider, specify authenticated same-origin server transport,
 server-enforced role/case authorization, request/response size/schema validation, rate

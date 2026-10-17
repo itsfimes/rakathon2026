@@ -1,4 +1,3 @@
-import { ASSISTANT_FIELD_LABELS } from '../../assistant/contracts'
 import type { Assistant, AssistantRequest, AssistantResult } from '../../assistant/contracts'
 import { ASSISTANT_PROMPTS } from '../../assistant/prompts'
 import { validRequest } from '../../assistant/validation'
@@ -16,16 +15,13 @@ export function createScriptedAssistant(): Assistant {
       let text: string
       if (!supported) {
         text = 'Tento volný dotaz skriptovaná ukázka nepodporuje. Použijte přesně nabízený dotaz; nejde o skutečnou AI.'
-      } else if (!request.context) {
-        text = 'Pro tento přehled nejprve výslovně zapněte sdílení zobrazeného náhledu kontextu. Bez něj nečtu žádný případ.'
       } else {
-        text = request.context.fields.map(field => `${ASSISTANT_FIELD_LABELS[field.key]}: ${field.value}`).join('\n')
+        text = request.caseId ? 'Je vybrán syntetický případ. Tato skriptovaná ukázka nenačítá úplný zdravotní záznam ani neposílá data do Azure AI.' : 'Není vybrán pacient; jde o obecný dotaz bez zdravotního záznamu.'
       }
-      const sources = supported && request.context ? [...new Set(request.context.fields.map(field => field.source))] : []
       return { ok: true, value: {
         provenance: 'scripted',
         text: `Skriptovaná ukázka, nikoli AI.\n${text}\nPouze opis dodaných údajů; bez klinického posouzení, určení priority nebo schválení termínu.`,
-        sources,
+        sources: [], coverage: { status: 'general', resources: 0, uploads: 0, failedTypes: [] },
       } }
     },
   })

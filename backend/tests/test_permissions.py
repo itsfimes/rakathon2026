@@ -60,6 +60,24 @@ def test_admin_can_write_patient_search() -> None:
     assert check(policy, "admin", "vector.patient.search").allowed is True
 
 
+@pytest.mark.parametrize("user", ["coordinator", "clinician", "viewer", "admin"])
+def test_all_human_roles_can_ask_assistant(user: str) -> None:
+    assert check(load_matrix(), user, "ai.ask").allowed is True
+
+
+@pytest.mark.parametrize("user", ["coordinator", "clinician", "viewer"])
+def test_human_assistant_permission_does_not_allow_direct_ai_or_fhir_writes(user: str) -> None:
+    policy = load_matrix()
+    assert check(policy, user, "ai.complete").allowed is False
+    assert check(policy, user, "fhir.write").allowed is False
+
+
+def test_service_principals_keep_narrow_assistant_permissions() -> None:
+    policy = load_matrix()
+    assert check(policy, "watchdog", "ai.ask").allowed is False
+    assert policy.actions_for_role("web-assistant") == frozenset({"ai.complete"})
+
+
 def test_check_is_pure_no_caller_role() -> None:
     policy = Policy(roles={"viewer": frozenset({"tasks.read"})}, users={"viewer": "viewer"})
     allowed = check(policy, "viewer", "tasks.write")

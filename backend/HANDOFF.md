@@ -199,8 +199,9 @@
 ## Merge integration (authentication lane)
 Authenticated clinical facade is integrated: `web/auth_bridge.py` serves
 `GET session|workspace|cases` plus `POST assistant` behind `AuthHTTPRouter`
-with B7 identity, per-request `web:auth` reads, human `ai.ask` gate, view-role
-only body, stable per-user bindings, and single-AI 429 gate. Former default
+with B7 identity, per-request `web:auth` reads, human `ai.ask` gate,
+`{role,text,caseId?}` body, full human-authorized selected-record context sent to
+Azure, and single-AI 429 gate. No previews or snapshot bindings remain. Former default
 clinical 503 notes above are superseded. `auth-serve --assistant` gates direct
 AI; default remains mock off with no network AI. Live IRIS not verified here;
 no MFA/SSO/production claims. Backend: 783 pytest `-W error` PASS, ruff/mypy

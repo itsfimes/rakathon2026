@@ -19,6 +19,7 @@ from rakathon_backend.uploads.store_index import (
     scan_meta_jobs,
 )
 from rakathon_backend.uploads.store_io import atomic_write, now_iso, sanitize_filename, valid_uuid
+from rakathon_backend.uploads.store_read import UploadReadMixin
 
 __all__ = ["sanitize_filename"]
 
@@ -30,7 +31,7 @@ STATUSES = frozenset(
 )
 
 
-class UploadStore:
+class UploadStore(UploadReadMixin):
     def __init__(self, store_dir: Path, keys: UploadKeys) -> None:
         self._dir = store_dir
         self._keys = keys
@@ -183,11 +184,6 @@ class UploadStore:
                 raise
             return dict(job)
 
-    def list_case(self, case_id: str) -> list[dict[str, Any]]:
-        with self._lock:
-            out = [dict(j) for j in self._jobs.values() if j.get("caseId") == case_id]
-        return sorted(out, key=lambda j: str(j.get("createdAt", "")))
-
     def claim_next(self) -> dict[str, Any] | None:
         with self._lock:
             running = any(j.get("status") == "running" for j in self._jobs.values())
@@ -319,21 +315,6 @@ class UploadStore:
     def write_result_blob(self, job_id: str, name: str, payload: bytes) -> None:
         nonce, ct = seal(self._keys.key, self._aad(job_id, name), payload)
         atomic_write(self._job_dir(job_id) / f"{name}.enc", nonce + b"." + base64.b64encode(ct))
-
-    def read_result_blob(self, job_id: str, name: str) -> bytes | None:
-        try:
-            blob = (self._job_dir(job_id) / f"{name}.enc").read_bytes()
-        except OSError:
-            return None
-        try:
-            nonce_b, ct_b = blob.rsplit(b".", 1)
-            ct = base64.b64decode(ct_b)
-        except ValueError:
-            return None
-        try:
-            return open_sealed(self._keys.key, self._aad(job_id, name), nonce_b, ct)
-        except ContractError:
-            return None
 
     def export_zip(self, job_id: str) -> bytes | None:
         job = self.get(job_id)

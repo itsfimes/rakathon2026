@@ -1,13 +1,13 @@
 import { memo, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { FormEvent, RefObject } from 'react'
-import { ASSISTANT_FIELD_LABELS, ASSISTANT_LIMITS } from '../../assistant/contracts'
+import { ASSISTANT_LIMITS } from '../../assistant/contracts'
 import { ASSISTANT_PROMPTS } from '../../assistant/prompts'
 import type { useAssistant } from '../../assistant/useAssistant'
 import { isAssistantRole } from '../../assistant/validation'
 import type { ModeStripState } from '../../components/shell/ModeStrip'
 import { Icon } from '../../icons/Icon'
 import type { ViewId } from '../../lib/roles'
-import { ContextAttach, Transcript } from './AssistantParts'
+import { RecordDisclosure, Transcript } from './AssistantParts'
 import { lockBodyScroll } from './bodyLock'
 import { provenanceText } from './labels'
 import { revealScrollTop } from './scroll'
@@ -21,8 +21,6 @@ interface AssistantDialogProps {
   readonly assistant: Controller
   readonly view: ViewId
   readonly mode: ModeStripState['kind']
-  /** Why case context cannot be attached right now (null when it can). */
-  readonly contextReason: string | null
   readonly returnFocus: RefObject<HTMLElement | null>
   /** Returns true when the close came from navigation; the new page then owns focus. */
   readonly skipFocusRestore?: () => boolean
@@ -37,7 +35,7 @@ const MODE_TEXT: Record<ModeStripState['kind'], { readonly tone: string; readonl
 
 /** Non-modal docked panel (dialog.show): the page stays interactive and reflows around it
     (right column on desktop, bottom dock on phones). Escape inside the panel closes it. */
-export function AssistantDialog({ open, onClose, assistant, view, mode, sourceLabel, contextReason, returnFocus, skipFocusRestore }: AssistantDialogProps) {
+export function AssistantDialog({ open, onClose, assistant, view, mode, sourceLabel, returnFocus, skipFocusRestore }: AssistantDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
 
@@ -114,8 +112,8 @@ export function AssistantDialog({ open, onClose, assistant, view, mode, sourceLa
       onCancel={event => { event.preventDefault(); onClose() }}
       onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onClose() } }}
       onClose={() => { if (open) onClose(); restoreFocus() }}>
-      {/* Mounted only while open (and its exit): the inspection view and scroll memory reset on every opening. */}
-      {(open || exiting) && <HeldSheet frozen={!open} onClose={onClose} assistant={assistant} view={view} mode={mode} sourceLabel={sourceLabel} contextReason={contextReason} titleRef={titleRef} />}
+      {/* Mounted only while open (and its exit); scroll memory resets on every opening. */}
+      {(open || exiting) && <HeldSheet frozen={!open} onClose={onClose} assistant={assistant} view={view} mode={mode} sourceLabel={sourceLabel} titleRef={titleRef} />}
     </dialog>
   )
 }
@@ -131,11 +129,10 @@ interface SheetProps {
   readonly assistant: Controller
   readonly view: ViewId
   readonly mode: ModeStripState['kind']
-  readonly contextReason: string | null
   readonly titleRef: RefObject<HTMLHeadingElement | null>
 }
 
-function Sheet({ onClose, assistant, view, mode, sourceLabel, contextReason, titleRef }: SheetProps) {
+function Sheet({ onClose, assistant, view, mode, sourceLabel, titleRef }: SheetProps) {
   const ids = useId()
   const inputId = `${ids}-input`
   const role = isAssistantRole(view) ? view : null
@@ -144,20 +141,7 @@ function Sheet({ onClose, assistant, view, mode, sourceLabel, contextReason, tit
   const scripted = assistant.provenance === 'scripted'
   const usable = assistant.available && role !== null
 
-  // Exact-context inspection replaces the conversation inside the same dialog (no growing footer).
-  const [inspecting, setInspecting] = useState(false)
-  const showInspect = inspecting && assistant.contextPreview !== null
-  const inspectHeading = useRef<HTMLHeadingElement>(null)
-  const inspectButton = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  function openInspect() {
-    setInspecting(true)
-    requestAnimationFrame(() => inspectHeading.current?.focus())
-  }
-  function closeInspect() {
-    setInspecting(false)
-    requestAnimationFrame(() => inspectButton.current?.focus())
-  }
 
   // A new turn is revealed only when the reader was already at the bottom; a long reply shows its start.
   // Pending state and typing never scroll; keyboard focus is never moved.
@@ -176,11 +160,10 @@ function Sheet({ onClose, assistant, view, mode, sourceLabel, contextReason, tit
   const busy = assistant.pending
   const emptyInput = !assistant.input.trim()
   const nearLimit = assistant.input.length >= ASSISTANT_LIMITS.input * 0.8
-  const nothingToClear = assistant.messages.length === 0 && !assistant.input && !assistant.contextSelected && !assistant.error
+  const nothingToClear = assistant.messages.length === 0 && !assistant.input && !assistant.error
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy || emptyInput) return
-    setInspecting(false)
     void assistant.send()
   }
   // A suggestion fills the input for review; sending always goes through the one submit button.
@@ -221,20 +204,9 @@ function Sheet({ onClose, assistant, view, mode, sourceLabel, contextReason, tit
           </div>
         </div>
         : <>
-          {showInspect
-            ? <div className="assistant__body assistant-inspect">
-              <p className="visually-hidden" id="assistant-scope">Náhled údajů, které lze připojit k dotazu.</p>
-              <button type="button" className="assistant-back" onClick={closeInspect}><Icon name="arrow" small />Zpět ke konverzaci</button>
-              <h3 className="assistant-inspect__title" ref={inspectHeading} tabIndex={-1}>Údaje k připojení ({assistant.contextPreview!.fields.length})</h3>
-              <p className="assistant-empty__text">{assistant.contextSelected ? 'Připojeno: k dalšímu dotazu se přidají přesně tyto údaje.' : 'Zatím nepřipojeno. Prohlížením se nic nepřipojí.'}</p>
-              <dl className="assistant-inspect__list">
-                {assistant.contextPreview!.fields.map((field, index) => <div key={index}><dt>{ASSISTANT_FIELD_LABELS[field.key]}</dt><dd>{field.value}</dd></div>)}
-              </dl>
-              <p className="assistant-attach__note">Nic dalšího: bez jména, diagnózy a celé dokumentace.</p>
-            </div>
-            : <div className="assistant__body" ref={bodyRef} onScroll={event => { const b = event.currentTarget; atBottom.current = b.scrollTop + b.clientHeight >= b.scrollHeight - 48 }}>
+          <div className="assistant__body" ref={bodyRef} onScroll={event => { const b = event.currentTarget; atBottom.current = b.scrollTop + b.clientHeight >= b.scrollHeight - 48 }}>
               <p className="assistant__scope" id="assistant-scope">
-                {scripted ? 'Jen opakuje údaje, které připojíte; neradí ve zdraví ani léčbě.' : 'Neradí ve zdraví ani léčbě a nic neprovádí.'} Zavřením se vše smaže.
+                {scripted ? 'Skriptovaná ukázka; data se nikam neposílají.' : 'Informační asistent nenahrazuje lékaře, nepředepisuje léčbu a nic neprovádí.'} Zavřením se konverzace v aplikaci smaže.
               </p>
               <Transcript messages={assistant.messages} available scripted={scripted} />
               {assistant.messages.length === 0 && prompts.length > 0 && <div className="assistant__suggest" role="group" aria-label="Nabízený dotaz">
@@ -247,13 +219,11 @@ function Sheet({ onClose, assistant, view, mode, sourceLabel, contextReason, tit
               <p className="assistant__status" role="status">{status}</p>
               {assistant.error && <p className="assistant__error" role="alert"><Icon name="alert" small />{assistant.error}</p>}
               <button type="button" className="assistant__clear" aria-disabled={nothingToClear || undefined} onClick={() => { if (!nothingToClear) assistant.clear() }}>Vymazat konverzaci</button>
-            </div>}
+            </div>
 
-          {/* One composer unit: opt-in context strip, the question, and the send row. */}
+          {/* Record disclosure, question, and explicit send action. */}
           <form className="assistant__composer" onSubmit={submit}>
-            <ContextAttach id={`${ids}-ctx`} preview={assistant.contextPreview} selected={assistant.contextSelected}
-              available={assistant.contextAvailable} reason={contextReason} onSelect={assistant.selectContext}
-              inspecting={showInspect} onInspect={showInspect ? closeInspect : openInspect} inspectRef={inspectButton} />
+            <RecordDisclosure caseId={assistant.caseId} scripted={scripted} />
             <label className="visually-hidden" htmlFor={inputId}>Váš dotaz</label>
             <textarea id={inputId} ref={inputRef} className="assistant__input" rows={2} maxLength={ASSISTANT_LIMITS.input}
               placeholder="Napište dotaz…" value={assistant.input} onChange={event => assistant.setInput(event.target.value)} aria-describedby={`${ids}-count`} />

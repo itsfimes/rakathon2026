@@ -261,8 +261,8 @@ class WebService:
     async def case(self, patient_id: str) -> tuple[int, dict[str, Any]]:
         return await self._case(patient_id)
 
-    async def _patient_context(self, patient_id: str) -> dict[str, Any]:
-        return await collect_patient_context(self._read, patient_id, self.uploads)
+    async def _patient_context(self, patient_id: str, max_bytes: int) -> dict[str, Any]:
+        return await collect_patient_context(self._read, patient_id, self.uploads, max_bytes)
 
     async def send_assistant(self, request: Any) -> tuple[int, dict[str, Any]]:
         if self.assistant is None or not self.assistant_ready():

@@ -5,11 +5,10 @@ import { createBackendSession } from '../src/data/backend/gateway'
 import { caseResponse, jsonResponse, sessionResponse, workspaceResponse } from './backend-fixtures'
 
 const bound: AssistantRequest = { role: 'pacient', text: 'Synthetic question',
-  context: { role: 'pacient', fields: [{ key: 'record.coverage', source: 'record-coverage', value: 'Zprávy: načteno' }] },
-  binding: { caseId: 'synthetic-0', token: `1000.${'a'.repeat(64)}` } }
+  caseId: 'synthetic-0' }
 const general: AssistantRequest = { role: 'pacient', text: 'Synthetic general question' }
-const answer = { provenance: 'server', text: 'Synthetic answer', sources: ['record-coverage'] }
-const generalAnswer = { ...answer, sources: [] as string[] }
+const answer = { provenance: 'server', text: 'Synthetic answer', sources: ['Patient/synthetic-0'], coverage: { status: 'complete', resources: 1, uploads: 0, failedTypes: [] } }
+const generalAnswer = { ...answer, sources: [] as string[], coverage: { ...answer.coverage, status: 'general', resources: 0 } }
 
 type CallInit = { headers: Record<string, string>; body?: unknown }
 const initOf = (fetcher: ReturnType<typeof vi.fn<typeof fetch>>, call = 0) =>

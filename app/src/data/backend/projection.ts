@@ -17,7 +17,7 @@ export function projectWorkspace(dto: WorkspaceDTO): Workspace {
 export function projectCase(dto: CaseDTO): CaseDetail {
   const clinical = projectClinical(dto)
   const record = buildPatientRecord(clinical)
-  return freezeClinicalSnapshot({ clinical, assistantPreview: dto.assistantPreview,
+  return freezeClinicalSnapshot({ clinical,
     identity: { caseId: dto.patient.id!, patientId: dto.patient.id!, patientLabel: patientLabel(dto.patient), patientAddressLabel: patientLabel(dto.patient),
       age: ageAt(dto.patient.birthDate, dto.fetchedAt), diagnosis: null, referrer: null, referredAt: null },
     phases: [], nextStep: null, priorityExplanation: null, documents: [],

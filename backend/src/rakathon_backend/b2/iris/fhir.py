@@ -84,7 +84,11 @@ class DirectFhirAdapter:
     def _path(self, resource_type: str, rid: str | None = None) -> str:
         if resource_type not in READ_ALLOWED_TYPES:
             raise ContractError(code="bad_payload", message="resourceType unsupported")
-        if rid is not None and _ID_RE.fullmatch(rid) is None:
+        if rid is not None and (
+            not isinstance(rid, str)
+            or _ID_RE.fullmatch(rid) is None
+            or re.search(r"[A-Za-z0-9]", rid) is None
+        ):
             raise ContractError(code="bad_payload", message="id invalid")
         if rid is None:
             return f"/{resource_type}"
@@ -138,7 +142,7 @@ class DirectFhirAdapter:
         if response.status_code != 200:
             raise self._fail(response)
         if len(response.content) > MAX_BODY:
-            raise ContractError(code="remote_error", message="iris response too large")
+            raise ContractError(code="resource_limit", message="iris response too large")
         try:
             body = response.json()
         except Exception as exc:

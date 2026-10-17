@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { BootstrapResult, Session } from './data/contracts'
-import { buildAssistantContext } from './assistant/context'
 import { useAssistant } from './assistant/useAssistant'
-import { isAssistantRole } from './assistant/validation'
 import { Icon } from './icons/Icon'
 import { AssistantDialog } from './features/assistant/AssistantDialog'
 import { DetailScopeProvider } from './features/shared/detailScope'
@@ -81,8 +79,11 @@ export function App({ boot, authed, lockedView, onLogout, loggingOut }: { readon
     : (route.page === 'view' || route.page === 'record') && view === 'pacient'
       ? previewId ?? (workspace.status === 'ready' ? workspace.value.defaultCaseId : null)
       : null
+  // Opening a case or the patient's own record selects it; overview/default previews do not.
+  const assistantCaseId = route.page === 'detail' ? route.caseId
+    : route.page === 'record' && view === 'pacient' ? effectiveId : null
   const detail = useCaseDetail(gateway, effectiveId, version)
-  // Only clinician selections feed the patient preview; MDT has its own list and exact case pages.
+  // This affects the page preview only; every role's detail route independently selects assistant context.
   const loadedExplicitId = route.page === 'detail' && route.view !== 'mdt' && detail.status === 'ready' && detail.fresh
     && detail.value.identity.caseId === route.caseId ? route.caseId : null
   if (loadedExplicitId !== null && loadedExplicitId !== previewId) setPreviewId(loadedExplicitId)
@@ -128,13 +129,7 @@ export function App({ boot, authed, lockedView, onLogout, loggingOut }: { readon
   const contextFresh = readyDetail !== null && !actions.busy
   const preparationRevision = contextFresh ? readyDetail?.mdt.preparation?.revision ?? 'none' : 'unavailable'
   const assistantScopeKey = JSON.stringify([routeIdentity, preparationRevision])
-  const assistantContext = useMemo(() => buildAssistantContext(view, readyDetail, contextFresh), [view, readyDetail, contextFresh])
-  const assistant = useAssistant({ session, view, caseId: effectiveId, version, resetKey, scopeKey: assistantScopeKey, open: assistantOpen, contextFresh, context: assistantContext,
-    binding: isAssistantRole(view) ? readyDetail?.assistantPreview?.[view]?.binding : undefined })
-  const contextReason = !isAssistantRole(view) ? 'V tomto pohledu není žádný případ.'
-    : session === null || detail.status === 'error' ? 'Data případu nejsou k dispozici.'
-      : !contextFresh ? 'Data případu se načítají nebo mění; kontext lze připojit až po načtení.'
-        : null
+  const assistant = useAssistant({ session, view, caseId: assistantCaseId, version, resetKey, scopeKey: assistantScopeKey, open: assistantOpen, contextFresh })
   function closeAssistant() {
     assistant.close()
     setAssistantOpen(false)
@@ -200,7 +195,7 @@ export function App({ boot, authed, lockedView, onLogout, loggingOut }: { readon
       </main>
       <AssistantDialog open={assistantOpen} onClose={closeAssistant} assistant={assistant} view={view}
         sourceLabel={session?.mode === 'backend' && session.connection ? session.connection === 'connected' ? 'Backend IRIS · ' : 'Backend IRIS · není dostupný' : undefined}
-        mode={strip.kind} contextReason={contextReason} returnFocus={assistantTrigger} skipFocusRestore={skipFocusRestore} />
+        mode={strip.kind} returnFocus={assistantTrigger} skipFocusRestore={skipFocusRestore} />
     </>
   )
 }

@@ -11,7 +11,7 @@ from rakathon_backend.common.errors import AuthError, ContractError, TransportEr
 from rakathon_backend.common.ipc import UnixJsonClient
 from rakathon_backend.common.rpc import new_envelope, socket_for
 from rakathon_backend.uploads.store import UploadStore
-from rakathon_backend.web.assistant import validate_request
+from rakathon_backend.web.assistant import DEADLINE, validate_request
 from rakathon_backend.web.contracts import WebError
 from rakathon_backend.web.projection import ID
 from rakathon_backend.web.router import VerifiedIdentity
@@ -19,7 +19,7 @@ from rakathon_backend.web.service import WebService
 
 WEB_SOURCE = "web:auth"
 READ_TIMEOUT = 7.0
-AI_TIMEOUT = 85.0
+AI_TIMEOUT = float(DEADLINE + 2)
 SESSION_PATH = "/api/v1/session"
 WORKSPACE_PATH = "/api/v1/workspace"
 CASES_PREFIX = "/api/v1/cases/"

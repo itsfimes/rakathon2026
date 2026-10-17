@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -9,11 +10,13 @@ from rakathon_backend.common.contracts import DataKind, Envelope
 from rakathon_backend.common.ipc import MAX_FRAME_BYTES
 from rakathon_backend.common.rpc import new_envelope
 from rakathon_backend.web.assistant_context import ROLES, canonical
+from rakathon_backend.web.context_budget import context_too_large
 from rakathon_backend.web.contracts import Client, WebError
-from rakathon_backend.web.patient_context import context_too_large
 from rakathon_backend.web.projection import ID
 
-DEADLINE = 80
+# Collection gets 20s, provider at most 60s, then 3s for assembly/IPC overhead.
+# The HTTP/auth bridge waits 85s and the browser 90s.
+DEADLINE = 83
 
 
 def validate_request(value: Any) -> dict[str, Any]:
@@ -28,7 +31,9 @@ def validate_request(value: Any) -> dict[str, Any]:
     ):
         raise bad
     if "caseId" in value and (
-        not isinstance(value["caseId"], str) or ID.fullmatch(value["caseId"]) is None
+        not isinstance(value["caseId"], str)
+        or ID.fullmatch(value["caseId"]) is None
+        or re.search(r"[A-Za-z0-9]", value["caseId"]) is None
     ):
         raise bad
     return value
@@ -38,7 +43,7 @@ class WebAssistant:
     def __init__(
         self,
         client: Client,
-        collect_context: Callable[[str], Awaitable[dict[str, Any]]],
+        collect_context: Callable[[str, int], Awaitable[dict[str, Any]]],
     ) -> None:
         self.client = client
         self.collect_context = collect_context
@@ -72,7 +77,7 @@ class WebAssistant:
             "failedTypes": [],
         }
         if "caseId" in request:
-            context = await self.collect_context(request["caseId"])
+            context = await self.collect_context(request["caseId"], self.max_context_bytes)
             sources = list(
                 dict.fromkeys(
                     [f"{item['resourceType']}/{item['id']}" for item in context["resources"]]
@@ -85,7 +90,9 @@ class WebAssistant:
                 if info["status"] != "complete"
             ]
             unreadable = sum(item["status"] != "decoded" for item in context["documentTexts"])
-            invalid_uploads = sum(bool(item["unavailable"]) for item in context["uploads"])
+            invalid_uploads = sum(
+                bool(item["unavailable"]) or not item["artifacts"] for item in context["uploads"]
+            )
             coverage = {
                 "status": "partial" if failed or unreadable or invalid_uploads else "complete",
                 "resources": len(context["resources"]),

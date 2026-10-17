@@ -288,10 +288,12 @@ to the versioned `WebService` shapes with sanitized `WebError` mapping and
 `POST /api/v1/assistant` accepts the UI view `role` (`koordinator|pacient|
 lekar|mdt`) only on that route; `userId`, `user_id`, `username` stay rejected
 and identity comes from B7 alone. Human `ai.ask` is authorized per verified
-user via `web:auth` before any AI; `viewer` gets 403. `web-assistant` keeps
+user via `web:auth` before any AI; coordinator, clinician and viewer human
+roles can ask in all four UI views. `web-assistant` keeps
 the literal service-principal `ai.complete` path with B4/IPC clamps.
-Snapshot bindings use a per-boot 32B root derived per user ID plus auth
-version (TTL 300, restart-invalidated) with a global single-AI gate (429).
+Assistant requests are `{role,text,caseId?}`. A supplied case triggers the full
+record read under the human identity before Azure egress; no case means general chat.
+No snapshot bindings remain. The global single-AI gate still returns429 when busy.
 `auth-serve` defaults to mock AI off; `--assistant` plus provider env, auth
 scheme, timeout<=60, consent, and kill gates enable direct mode only.
 Live IRIS is not verified in this lane; no MFA/SSO or production claims.

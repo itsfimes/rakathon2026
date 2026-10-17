@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from rakathon_backend.b2.auth.keys import generate_key_file
 from rakathon_backend.b2.auth.sqlite_store import SQLiteDemoAuthStore
 from rakathon_backend.b2.memory import MemoryStorage
@@ -12,7 +14,7 @@ from rakathon_backend.b4.router import web_envelope
 from rakathon_backend.b5.gateway import MockAdapter
 from rakathon_backend.b7.provider import LocalPasswordProvider
 from rakathon_backend.b7.service import AuthService
-from rakathon_backend.common.contracts import DataKind
+from rakathon_backend.common.contracts import DataKind, Envelope
 from rakathon_backend.common.errors import AuthError
 from rakathon_backend.common.rpc import new_envelope
 from rakathon_backend.runtime.auth_bundle import (
@@ -20,7 +22,7 @@ from rakathon_backend.runtime.auth_bundle import (
     build_auth_app,
     fresh_tokens_with_auth,
 )
-from rakathon_backend.web.auth_bridge import AuthBridge
+from rakathon_backend.web.auth_bridge import AuthBridge, IdentityClient
 from rakathon_backend.web.config import COOKIE_LOOPBACK, WebConfig
 from rakathon_backend.web.edge import build_login_callables
 from rakathon_backend.web.router import AuthHTTPRouter
@@ -207,7 +209,7 @@ async def test_each_authorized_human_can_read_selected_record(tmp_path: Path) ->
         await stack["app"].close()
 
 
-async def test_viewer_assistant_403_before_ai(tmp_path: Path) -> None:
+async def test_viewer_assistant_can_use_authorized_record(tmp_path: Path) -> None:
     stack = await make_stack(tmp_path, ai_mode="direct", assistant=True)
     try:
         router = stack["router"]
@@ -221,7 +223,41 @@ async def test_viewer_assistant_403_before_ai(tmp_path: Path) -> None:
         status, _ = await call_router(
             router, "POST", "/api/v1/assistant", auth_headers(token_v, csrf_v, body), body
         )
+        assert status == 200
+    finally:
+        await stack["app"].close()
+
+
+async def test_case_read_denied_under_human_identity_stops_before_collection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stack = await make_stack(tmp_path, ai_mode="direct", assistant=True)
+    reads: list[tuple[str, dict[str, Any]]] = []
+    ai_calls: list[Envelope] = []
+    original = IdentityClient.call
+
+    async def denied(
+        self: IdentityClient, envelope: Envelope, *, expect_source: str | None = None
+    ) -> Envelope:
+        if envelope.action == "fhir.read":
+            reads.append((self._user_id, envelope.payload))
+            raise AuthError(code="auth_failed")
+        if envelope.action == "ai.complete":
+            ai_calls.append(envelope)
+        return await original(self, envelope, expect_source=expect_source)
+
+    monkeypatch.setattr(IdentityClient, "call", denied)
+    try:
+        token, csrf = await login_pair(stack, "clinician.one")
+        body = json.dumps({"role": "pacient", "text": "Q", "caseId": "synthetic-1"}).encode()
+        status, _ = await call_router(
+            stack["router"], "POST", "/api/v1/assistant", auth_headers(token, csrf, body), body
+        )
         assert status == 403
+        assert reads == [
+            (stack["clinician"].user_id, {"resourceType": "Patient", "id": "synthetic-1"})
+        ]
+        assert not ai_calls
     finally:
         await stack["app"].close()
 

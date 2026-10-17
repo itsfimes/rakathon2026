@@ -16,8 +16,8 @@ from rakathon_backend.b5.direct import DirectAdapter
 from rakathon_backend.b5.direct_http import DirectHttpTransport, DirectProviderConfig
 from rakathon_backend.common.errors import ContractError
 from rakathon_backend.common.fhir import PATIENT_CONTEXT_TYPES
-from rakathon_backend.runtime.application import BackendApp, fresh_tokens
 from rakathon_backend.converter.model_draft import build_model_draft
+from rakathon_backend.runtime.application import BackendApp, fresh_tokens
 from rakathon_backend.uploads.crypto import generate_key_file
 from rakathon_backend.uploads.review_helpers import REVIEW_APPROVED_BLOB, REVIEW_STATE_BLOB
 from rakathon_backend.uploads.store import UploadStore
@@ -154,9 +154,11 @@ async def test_other_owner_same_case_uploads_read_only(tmp_path: Path) -> None:
         "extractSha256": None,
     }
     store.write_result_blob(second["id"], "transcription", canonical(transcript))
-    store.write_result_blob(second["id"], "model-draft", canonical(
-        build_model_draft("PENDING RAW DRAFT", second["sha256"], "test", "test")
-    ))
+    store.write_result_blob(
+        second["id"],
+        "model-draft",
+        canonical(build_model_draft("PENDING RAW DRAFT", second["sha256"], "test", "test")),
+    )
     approved = {
         "resourceType": "Bundle",
         "entry": [

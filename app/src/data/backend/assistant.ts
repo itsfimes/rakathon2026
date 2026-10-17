@@ -1,4 +1,4 @@
-import type { Assistant, AssistantReply, AssistantRequest, AssistantResult, AssistantSourceId } from '../../assistant/contracts'
+import type { Assistant, AssistantErrorCode, AssistantRequest, AssistantResult } from '../../assistant/contracts'
 import { validReply, validRequest } from '../../assistant/validation'
 import type { AuthRequestHooks } from './gateway'
 import { jsonBody } from './http'
@@ -21,9 +21,9 @@ export class BackendAssistant implements Extract<Assistant, { availability: 'ava
   constructor(private readonly fetcher: typeof fetch = (input, init) => globalThis.fetch(input, init), private readonly hooks: AuthRequestHooks = {}) {}
 
   async send(request: AssistantRequest, signal: AbortSignal): Promise<AssistantResult> {
-    const failed = (code: 'aborted' | 'invalid-request' | 'invalid-response' | 'unavailable'): AssistantResult => ({ ok: false, error: { code } })
+    const failed = (code: AssistantErrorCode): AssistantResult => ({ ok: false, error: { code } })
     if (signal.aborted) return failed('aborted')
-    if (!validRequest(request) || (!!request.context !== !!request.binding)) return failed('invalid-request')
+    if (!validRequest(request)) return failed('invalid-request')
     const token = this.hooks.csrfToken?.() ?? null
     if (this.hooks.csrfToken && !token) return failed(signal.aborted ? 'aborted' : 'unavailable')
     const controller = new AbortController()
@@ -32,7 +32,7 @@ export class BackendAssistant implements Extract<Assistant, { availability: 'ava
     const timer = setTimeout(abort, 90_000)
     try {
       const payload = { role: request.role, text: request.text,
-        ...(request.context ? { context: request.context, binding: request.binding } : {}) }
+        ...(request.caseId !== undefined ? { caseId: request.caseId } : {}) }
       const body = JSON.stringify(payload)
       if (new TextEncoder().encode(body).byteLength > 16 * 1024) return failed('invalid-request')
       const response = await this.fetcher('/api/v1/assistant', {
@@ -44,13 +44,15 @@ export class BackendAssistant implements Extract<Assistant, { availability: 'ava
         this.hooks.onUnauthorized?.()
         return failed('unavailable')
       }
+      if (response.status === 413 && response.headers.get('content-type')?.includes('application/json')) {
+        const raw = object(await jsonBody(response, 4096))
+        return failed(object(raw.error).code === 'context_too_large' ? 'context_too_large' : 'unavailable')
+      }
       if (!response.ok) return failed('unavailable')
       if (!response.headers.get('content-type')?.includes('application/json')) return failed('invalid-response')
-      const raw = object(await jsonBody(response, 64 * 1024))
-      if (Object.keys(raw).some(key => !['provenance', 'text', 'sources'].includes(key)) || raw.provenance !== 'server' || typeof raw.text !== 'string' || !Array.isArray(raw.sources) || !raw.sources.every(source => typeof source === 'string')) return failed('invalid-response')
-      const reply: AssistantReply = { provenance: 'server', text: raw.text, sources: raw.sources as AssistantSourceId[] }
+      const raw: unknown = await jsonBody(response, 128 * 1024)
       if (controller.signal.aborted) return failed('aborted')
-      return validReply(reply, request, 'server') ? { ok: true, value: reply } : failed('invalid-response')
+      return validReply(raw, 'server') ? { ok: true, value: raw } : failed('invalid-response')
     } catch { return failed(controller.signal.aborted ? 'aborted' : 'unavailable') }
     finally { clearTimeout(timer); signal.removeEventListener('abort', abort) }
   }

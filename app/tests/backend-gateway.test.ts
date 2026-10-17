@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildAssistantContext } from '../src/assistant/context'
 import { BackendGateway, createBackendSession, validApiBase } from '../src/data/backend/gateway'
 import { caseDTO } from '../src/data/backend/dto'
 import { ageAt, clinicalTime } from '../src/data/backend/values'
@@ -96,7 +95,7 @@ describe('faithful source facts and patient allowlist', () => {
     expect(d.mdt).not.toHaveProperty('preparation')
     expect(d.clinical?.domains.mdtPlan).toEqual([])
     expect(d.clinical?.sources[0]).toMatchObject({ ref: { version: 'unknown' }, issued: { kind: 'unknown' }, locallyAvailable: { kind: 'unknown' } })
-    for (const role of ['koordinator', 'lekar', 'pacient', 'mdt'] as const) expect(buildAssistantContext(role, d, true)).toBeNull()
+    expect(d).not.toHaveProperty('assistantPreview')
   })
   it.each(['confirmed', 'provisional', 'differential', 'unconfirmed', 'refuted'])('preserves Condition verification %s independent of active status', async code => {
     const raw = caseResponse()
