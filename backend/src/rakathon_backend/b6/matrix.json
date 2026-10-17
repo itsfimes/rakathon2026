@@ -16,7 +16,9 @@
       "ai.complete",
       "ai.ask",
       "reminders.read",
-      "watchdog.tick"
+      "watchdog.tick",
+      "document.upload",
+      "document.approve"
     ],
     "coordinator": [
       "health",
@@ -26,7 +28,9 @@
       "tasks.read",
       "tasks.write",
       "tasks.ack",
-      "reminders.read"
+      "reminders.read",
+      "document.upload",
+      "document.approve"
     ],
     "clinician": [
       "health",
@@ -35,7 +39,9 @@
       "tasks.ack",
       "vector.anonymized.search",
       "ai.translate",
-      "ai.ask"
+      "ai.ask",
+      "document.upload",
+      "document.approve"
     ],
     "viewer": ["health", "fhir.read", "tasks.read", "reminders.read"],
     "watchdog": ["health", "tasks.read", "reminders.read", "watchdog.tick"],

@@ -33,6 +33,7 @@ from rakathon_backend.runtime.auth_bundle import (
 )
 from rakathon_backend.runtime.iris_fhir import IRIS_FHIR_MODE, build_iris_fhir_app
 from rakathon_backend.runtime.screening_cmds import archive_store_from_env
+from rakathon_backend.runtime.upload_wiring import maybe_build_uploads as _maybe_build_uploads
 from rakathon_backend.web.auth_bridge import AuthBridge
 from rakathon_backend.web.config import WebConfig, load_proxy_key
 from rakathon_backend.web.demo_login import DemoLoginConfig, load_demo_login_file
@@ -192,6 +193,16 @@ async def cmd_auth_serve(args: argparse.Namespace) -> int:
     )
     router = AuthHTTPRouter(web_config, proxy_key, login, resolve, csrf_for, logout, demo=demo)
     binding_root = secrets.token_bytes(32)
+    upload_worker: Any = None
+    try:
+        upload_worker = _maybe_build_uploads(args, runtime_dir, tokens[WEB_SOURCE], router)
+    except ContractError as exc:
+        await app.close()
+        if adapter is not None:
+            with contextlib.suppress(OSError, RuntimeError):
+                await adapter.close()
+        print(json.dumps({"error": exc.code, "message": exc.message}))
+        return 2
 
     def _assistant_ready() -> bool:
         try:
@@ -268,6 +279,9 @@ async def cmd_auth_serve(args: argparse.Namespace) -> int:
     finally:
         await asyncio.to_thread(_stop_http, server, thread)
         await app.close()
+        if upload_worker is not None:
+            with contextlib.suppress(OSError, RuntimeError, ValueError):
+                upload_worker.close()
         if adapter is not None:
             with contextlib.suppress(OSError, RuntimeError):
                 await adapter.close()

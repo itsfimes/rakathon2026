@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
@@ -17,6 +18,7 @@ from rakathon_backend.common.framing import (
     raise_frame_error,
 )
 from rakathon_backend.common.health import socket_present
+from rakathon_backend.common.review_limits import normalize_action_timeouts
 
 MAX_FRAME_BYTES = 1_048_576
 DEFAULT_TIMEOUT = 5.0
@@ -39,16 +41,20 @@ class UnixJsonServer:
         token_registry: Mapping[str, str],
         handler: Handler,
         timeout: float = DEFAULT_TIMEOUT,
+        action_timeouts: Mapping[str, float] | None = None,
     ) -> None:
         if not service_name or not service_name.strip():
             raise ValueError("service_name must be nonempty")
-        if timeout <= 0:
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+            raise TypeError("timeout must be a number")
+        if not math.isfinite(float(timeout)) or timeout <= 0:
             raise ValueError("timeout must be positive")
         self._socket_path = socket_path
         self._service_name = service_name
         self._registry = dict(token_registry)
         self._handler = handler
-        self._timeout = timeout
+        self._timeout = float(timeout)
+        self._action_timeouts = normalize_action_timeouts(action_timeouts)
         self._server: asyncio.Server | None = None
         self._owns_socket = False
 
@@ -59,6 +65,10 @@ class UnixJsonServer:
     @property
     def service_name(self) -> str:
         return self._service_name
+
+    @property
+    def action_timeouts(self) -> dict[str, float]:
+        return dict(self._action_timeouts)
 
     async def start(self) -> None:
         target = self._socket_path
@@ -175,7 +185,8 @@ class UnixJsonServer:
                 await writer.drain()
                 return
             try:
-                result = await asyncio.wait_for(self._handler(request), timeout=self._timeout)
+                deadline = self._action_timeouts.get(request.action, self._timeout)
+                result = await asyncio.wait_for(self._handler(request), timeout=deadline)
             except TimeoutError:
                 writer.write(frame_error("timeout", "handler timed out"))
                 await writer.drain()

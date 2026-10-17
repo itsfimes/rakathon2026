@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from collections.abc import Mapping
 from contextlib import AsyncExitStack, suppress
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,13 @@ from rakathon_backend.common.ai_limits import (
 from rakathon_backend.common.blob_store import BlobStore
 from rakathon_backend.common.contracts import DataKind
 from rakathon_backend.common.ipc import UnixJsonClient, UnixJsonServer
+from rakathon_backend.common.review_limits import (
+    B2_REVIEW_ACTION_TIMEOUTS,
+    B2_REVIEW_CLIENT_TIMEOUT,
+    B4_REVIEW_ACTION_TIMEOUTS,
+    B4_REVIEW_PENDING_TIMEOUT,
+    REVIEW_ACTION,
+)
 from rakathon_backend.common.rpc import check_auth, make_client, new_envelope, socket_for
 from rakathon_backend.runtime import app_health as _app_health
 from rakathon_backend.runtime.fixtures import complete_fixture
@@ -166,7 +174,9 @@ class BackendApp:
             screening=self.screening,
             is_privileged=auth.is_privileged if auth is not None else None,
         )
-        await self._add("b2", registry, b2_handler(b2), timeout=7.0)
+        await self._add(
+            "b2", registry, b2_handler(b2), timeout=7.0, action_timeouts=B2_REVIEW_ACTION_TIMEOUTS
+        )
         gateway_timeout = AI_GATEWAY_TIMEOUT if ai_backed else 60.0
         gateway = B5Gateway(
             self.blob,
@@ -213,8 +223,10 @@ class BackendApp:
             return await client.call(request, expect_source="b1")
 
         async def call_b2(request: Any) -> Any:
+            action = getattr(request, "action", "")
+            timeout = B2_REVIEW_CLIENT_TIMEOUT if action == REVIEW_ACTION else 7.0
             client = make_client(
-                self.runtime_dir, target="b2", source="b4", token=self._token("b4"), timeout=7.0
+                self.runtime_dir, target="b2", source="b4", token=self._token("b4"), timeout=timeout
             )
             return await client.call(request, expect_source="b2")
 
@@ -230,12 +242,19 @@ class BackendApp:
             call_b5,
             source_users,
             ai_pending_timeout=AI_FRONTEND_TIMEOUT,
+            review_pending_timeout=B4_REVIEW_PENDING_TIMEOUT,
             privileged_users=privileged_users(policy),
             web_sources=auth.web_sources if auth is not None else None,
             is_privileged=auth.is_privileged if auth is not None else None,
         )
         self._b4 = router
-        await self._add("b4", registry, b4_handler(router), timeout=edge_timeout)
+        await self._add(
+            "b4",
+            registry,
+            b4_handler(router),
+            timeout=edge_timeout,
+            action_timeouts=B4_REVIEW_ACTION_TIMEOUTS,
+        )
 
         async def fetch_tasks(correlation_id: str) -> list[dict[str, Any]]:
             client = make_client(
@@ -282,7 +301,12 @@ class BackendApp:
             raise
 
     async def _add(
-        self, name: str, registry: dict[str, str], handler: Any, timeout: float = 5.0
+        self,
+        name: str,
+        registry: dict[str, str],
+        handler: Any,
+        timeout: float = 5.0,
+        action_timeouts: Mapping[str, float] | None = None,
     ) -> None:
         server = UnixJsonServer(
             socket_for(self.runtime_dir, name),
@@ -290,6 +314,7 @@ class BackendApp:
             token_registry=registry,
             handler=handler,
             timeout=timeout,
+            action_timeouts=action_timeouts,
         )
         try:
             await server.start()

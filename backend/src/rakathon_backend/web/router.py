@@ -49,6 +49,10 @@ class VerifiedIdentity:
 ProtectedHandler = Callable[
     [VerifiedIdentity, str, str, dict[str, Any]], tuple[int, dict[str, Any]]
 ]
+UploadHandler = Callable[
+    [VerifiedIdentity, str, str, dict[str, str], bytes | None],
+    tuple[int, dict[str, str], Any],
+]
 B4Dispatch = Callable[[VerifiedIdentity, str, str, dict[str, Any]], tuple[int, dict[str, Any]]]
 
 LOGIN_PATH = "/api/v1/auth/login"
@@ -82,6 +86,10 @@ class AuthHTTPRouter:
         self._demo = demo
         self._protected = protected if protected is not None else _default_deny
         self._allowed_hosts = allowed_hosts
+        self._upload: UploadHandler | None = None
+
+    def set_upload_handler(self, handler: UploadHandler | None) -> None:
+        self._upload = handler
 
     def set_allowed_hosts(self, hosts: frozenset[str]) -> None:
         current = self._allowed_hosts if self._allowed_hosts is not None else frozenset()
@@ -101,7 +109,7 @@ class AuthHTTPRouter:
         path: str,
         headers: dict[str, str],
         body: bytes | None,
-    ) -> tuple[int, dict[str, str], dict[str, Any]]:
+    ) -> tuple[int, dict[str, str], Any]:
         lowered = {str(k).lower(): str(v) for k, v in headers.items()}
         if not check_proxy_key(lowered.get(PROXY_HEADER), self._proxy):
             return (401, {}, _safe_error("auth_failed"))
@@ -122,7 +130,7 @@ class AuthHTTPRouter:
 
     def _handle_auth(
         self, method: str, path: str, headers: dict[str, str], body: bytes | None
-    ) -> tuple[int, dict[str, str], dict[str, Any]]:
+    ) -> tuple[int, dict[str, str], Any]:
         if path == LOGIN_PATH and method == "POST":
             return self._do_login(headers, body)
         if path == DEMO_LOGIN_PATH and method == "POST":
@@ -154,7 +162,7 @@ class AuthHTTPRouter:
 
     def _do_login(
         self, headers: dict[str, str], body: bytes | None
-    ) -> tuple[int, dict[str, str], dict[str, Any]]:
+    ) -> tuple[int, dict[str, str], Any]:
         if headers.get(LOGIN_HEADER) != LOGIN_HEADER_VALUE:
             return (401, {}, _safe_error("auth_failed"))
         if not self._require_origin(headers):
@@ -196,7 +204,7 @@ class AuthHTTPRouter:
 
     def _do_demo_login(
         self, headers: dict[str, str], body: bytes | None
-    ) -> tuple[int, dict[str, str], dict[str, Any]]:
+    ) -> tuple[int, dict[str, str], Any]:
         if self._demo is None:
             return (404, {}, _safe_error("not_found"))
         if headers.get(LOGIN_HEADER) != LOGIN_HEADER_VALUE:
@@ -238,7 +246,7 @@ class AuthHTTPRouter:
         except ContractError:
             return False
 
-    def _do_session(self, headers: dict[str, str]) -> tuple[int, dict[str, str], dict[str, Any]]:
+    def _do_session(self, headers: dict[str, str]) -> tuple[int, dict[str, str], Any]:
         token = self._cookie_token(headers)
         name, secure = self._config.cookie_name, self._config.secure_cookie
         if token is None:
@@ -262,7 +270,7 @@ class AuthHTTPRouter:
         ok = auth_success_body(identity.user_id, identity.username, identity.role, csrf, self._demo)
         return (200, {}, ok)
 
-    def _do_logout(self, headers: dict[str, str]) -> tuple[int, dict[str, str], dict[str, Any]]:
+    def _do_logout(self, headers: dict[str, str]) -> tuple[int, dict[str, str], Any]:
         cleared = {
             "Set-Cookie": clear_cookie_header(self._config.cookie_name, self._config.secure_cookie)
         }
@@ -299,9 +307,16 @@ class AuthHTTPRouter:
             return (503, {}, _safe_error("not_configured"))
         return (204, cleared, {})
 
+    def _is_upload_route(self, method: str, path: str) -> bool:
+        if path == "/api/v1/uploads/capabilities":
+            return True
+        if path.startswith("/api/v1/cases/") and path.endswith("/uploads"):
+            return True
+        return path.startswith("/api/v1/uploads/")
+
     def _handle_clinical(
         self, method: str, path: str, headers: dict[str, str], body: bytes | None
-    ) -> tuple[int, dict[str, str], dict[str, Any]]:
+    ) -> tuple[int, dict[str, str], Any]:
         token = self._cookie_token(headers)
         if token is None or token is False:
             return (401, {}, _safe_error("auth_failed"))
@@ -325,6 +340,11 @@ class AuthHTTPRouter:
                 return (403, {}, _safe_error("auth_failed"))
             if not check_csrf(headers.get(CSRF_HEADER), expected):
                 return (403, {}, _safe_error("auth_failed"))
+            if self._upload is not None and self._is_upload_route(method, path):
+                try:
+                    return self._upload(identity, method, path, headers, body)
+                except (ContractError, AuthError, TransportError, OSError, ValueError, KeyError):
+                    return (503, {}, _safe_error("not_configured"))
             parsed = self._parse_json_body(headers, body) if body else {}
             if body and parsed is None:
                 return (400, {}, _safe_error("bad_request"))
@@ -340,6 +360,11 @@ class AuthHTTPRouter:
                 return (400, {}, _safe_error("bad_request"))
             clean: dict[str, Any] = dict(parsed) if isinstance(parsed, dict) else {}
         else:
+            if self._upload is not None and self._is_upload_route(method, path):
+                try:
+                    return self._upload(identity, method, path, headers, body)
+                except (ContractError, AuthError, TransportError, OSError, ValueError, KeyError):
+                    return (503, {}, _safe_error("not_configured"))
             clean = {}
         try:
             status, payload = self._protected(identity, method, path, clean)

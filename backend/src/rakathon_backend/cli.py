@@ -142,6 +142,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="explicit opt-in for direct AI assistant (requires provider env + kill gates)",
     )
+    aserve.add_argument("--converter-store", default=None)
+    aserve.add_argument("--converter-secret-file", default=None)
+    aserve.add_argument("--converter-image", default="rakathon-converter:latest")
+    aserve.add_argument("--converter-enable", action="store_true")
     _add_env_file_arg(aserve)
     return parser
 

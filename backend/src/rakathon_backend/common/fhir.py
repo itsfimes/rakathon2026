@@ -25,6 +25,7 @@ MAX_TRANSACTION_ENTRIES = 100
 _ID_RE = re.compile(r"^[A-Za-z0-9\-.]{1,64}$")
 _RT_RE = re.compile(r"^[A-Za-z]+$")
 _SAFE_URL_RE = re.compile(r"^(" + "|".join(sorted(ALLOWED_TYPES)) + r")(/[A-Za-z0-9\-.]{1,64})?$")
+_PATIENT_REF_RE = re.compile(r"^Patient/[A-Za-z0-9\-.]{1,64}$")
 _EXEC_PREFIXES = ("javascript:", "data:", "vbscript:", "file:")
 
 _STATUS_VALUES: dict[str, frozenset[str]] = {
@@ -197,7 +198,9 @@ def _collect_references(value: Any, out: list[str]) -> None:
             _collect_references(item, out)
 
 
-def check_bundle(bundle: Any) -> dict[str, Any]:
+def check_bundle(
+    bundle: Any, *, allowed_external_refs: frozenset[str] | None = None
+) -> dict[str, Any]:
     if not isinstance(bundle, dict):
         raise _fail("bundle must be an object")
     if bundle.get("resourceType") == "OperationOutcome":
@@ -241,7 +244,12 @@ def check_bundle(bundle: Any) -> dict[str, Any]:
         _check_request(entry, rtype, rid)
     refs: list[str] = []
     _collect_references(bundle, refs)
+    allowed: frozenset[str] = (
+        frozenset() if allowed_external_refs is None else allowed_external_refs
+    )
     for ref in refs:
+        if _PATIENT_REF_RE.fullmatch(ref) is not None and ref in allowed:
+            continue
         if ref.startswith("urn:"):
             if ref not in seen_urls:
                 raise _fail("bundle reference is not closed")

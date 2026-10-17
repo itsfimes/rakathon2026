@@ -1,0 +1,72 @@
+{
+  "provenance": "Fully synthetic invented data for converter testing only. No real patients, no PHI, no source documents.",
+  "generator": "generate.py (Python standard library only, deterministic, fixed CreationDate 2026-01-01)",
+  "fixtures": [
+    {
+      "file": "fixture_01_lab_report.pdf",
+      "pages": 1,
+      "layout": "NOVA-CARE FORM LC-7 REV 4 coded lab report",
+      "expected_fields": [
+        {"field": "synthetic_marker", "value": "SYNTHETIC TEST ONLY - NOT REAL PATIENT DATA", "source_page": 1},
+        {"field": "patient_name", "value": "ZEBRA, ZELDA TEST-001", "source_page": 1},
+        {"field": "mrn", "value": "SYN-000001", "source_page": 1},
+        {"field": "visit", "value": "LV-2026-0001", "source_page": 1},
+        {"field": "TST^GLU-F", "value": "102", "unit": "mg/dL", "flag": "H", "source_page": 1},
+        {"field": "TST^NA-S", "value": "140", "unit": "mmol/L", "flag": "N", "source_page": 1},
+        {"field": "TST^K-S", "value": "4.1", "unit": "mmol/L", "flag": "N", "source_page": 1},
+        {"field": "TST^CRE-S", "value": "0.9", "unit": "mg/dL", "flag": "N", "source_page": 1},
+        {"field": "TST^HGB-B", "value": "13.5", "unit": "g/dL", "flag": "N", "source_page": 1}
+      ],
+      "must_not_infer": [
+        "Do not infer diagnosis from FLAG H glucose alone",
+        "Do not normalize invented codes TST^GLU-F to LOINC",
+        "Do not attach real facility identity to NCH-SYNTH-07"
+      ]
+    },
+    {
+      "file": "fixture_02_discharge_narrative.pdf",
+      "pages": 2,
+      "layout": "HARBOURVIEW DS-2 discharge narrative",
+      "expected_fields": [
+        {"field": "synthetic_marker", "value": "SYNTHETIC TEST ONLY - NOT REAL PATIENT DATA", "source_page": 1},
+        {"field": "synthetic_marker", "value": "SYNTHETIC TEST ONLY - NOT REAL PATIENT DATA", "source_page": 2},
+        {"field": "patient_name", "value": "YARROW, YUSUF TEST-002", "source_page": 1},
+        {"field": "mrn", "value": "SYN-000002", "source_page": 1},
+        {"field": "mrn", "value": "SYN-000002", "source_page": 2},
+        {"field": "admit", "value": "2026-03-01", "source_page": 1},
+        {"field": "discharge", "value": "2026-03-04", "source_page": 1},
+        {"field": "med_1", "value": "Drugaphen 250 mg by mouth twice daily for 5 days", "source_page": 1},
+        {"field": "med_2", "value": "Placebosol 10 mL at bedtime as needed", "source_page": 1},
+        {"field": "diagnosis_code", "value": "J06.9 Synthetic upper airway test case", "source_page": 2}
+      ],
+      "must_not_infer": [
+        "Do not infer real encounter, all history is invented scenario text",
+        "Do not map invented Drugaphen or Placebosol to real RxNorm entries",
+        "Do not treat 555-0100 as a real contact number"
+      ]
+    },
+    {
+      "file": "fixture_03_ambiguity_conflict.pdf",
+      "pages": 2,
+      "layout": "MERIDIAN MX-9 tricky ambiguity and conflict case",
+      "expected_fields": [
+        {"field": "synthetic_marker", "value": "SYNTHETIC TEST ONLY - NOT REAL PATIENT DATA", "source_page": 1},
+        {"field": "synthetic_marker", "value": "SYNTHETIC TEST ONLY - NOT REAL PATIENT DATA", "source_page": 2},
+        {"field": "mrn_page1", "value": "SYN-000003", "source_page": 1},
+        {"field": "mrn_page2_conflicting", "value": "SYN-000099", "source_page": 2},
+        {"field": "ambiguous_date_literal", "value": "03/04/05 (AMBIGUOUS, DO NOT NORMALIZE)", "source_page": 1},
+        {"field": "TST^GLU-F", "value": "98", "unit": null, "note": "UNIT MISSING", "source_page": 1},
+        {"field": "TST^WBC-B", "value": "6.2", "unit": null, "note": "UNIT MISSING", "source_page": 1},
+        {"field": "TST^NA-S", "value": "139", "unit": "mmol/L", "flag": "N", "source_page": 2},
+        {"field": "TST^CRE-S", "value": null, "note": "PENDING - NO VALUE REPORTED", "source_page": 2}
+      ],
+      "must_not_infer": [
+        "Do not normalize 03/04/05 to any ISO date",
+        "Do not fill missing units for GLU-F or WBC-B by guessing",
+        "Do not resolve MRN conflict SYN-000003 vs SYN-000099, must flag conflict",
+        "Do not strip query mark from 4.0? value, must preserve uncertainty",
+        "Do not invent a value for PENDING CRE-S"
+      ]
+    }
+  ]
+}

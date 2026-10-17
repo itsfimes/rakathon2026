@@ -1,4 +1,5 @@
 import type { Assistant, AssistantPreview, AssistantRole } from '../assistant/contracts'
+import type { UploadCapability } from './backend/uploads'
 import type { ClinicalRecord } from './clinical'
 import type { CollectionCoverage } from './coverage'
 import type { MdtPreparation } from './mdtPreparation'
@@ -150,6 +151,7 @@ export interface CaseDetail {
 }
 export interface Gateway {
   readonly mode: DataMode
+  readonly uploads?: UploadCapability | null
   readWorkspace(signal?: AbortSignal): Promise<Result<Workspace>>
   readCase(caseId: string, signal?: AbortSignal): Promise<Result<CaseDetail>>
 }

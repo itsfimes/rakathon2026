@@ -10,6 +10,7 @@ from rakathon_backend.b4.reminders import ReminderStore
 from rakathon_backend.common.contracts import DataKind, Envelope
 from rakathon_backend.common.errors import AuthError, ContractError, TransportError
 from rakathon_backend.common.kinds import request_kind
+from rakathon_backend.common.review_limits import B4_REVIEW_PENDING_TIMEOUT
 from rakathon_backend.common.rpc import new_envelope
 
 SERVICE_NAME = "b4"
@@ -17,6 +18,7 @@ SERVICE_NAME = "b4"
 ROUTE_INGEST = "ingest"
 ROUTE_FHIR_READ = "fhir.read"
 ROUTE_FHIR_WRITE = "fhir.write"
+ROUTE_DOCUMENT_APPROVE = "document.approve"
 ROUTE_SCREENING = "screening.query"
 ROUTE_TASKS = ("tasks.read", "tasks.write", "tasks.ack")
 ROUTE_VECTOR = ("vector.anonymized.search", "vector.patient.search")
@@ -32,6 +34,7 @@ USER_ACTIONS = frozenset(
         "fhir.read",
         "fhir.search",
         "fhir.write",
+        "document.approve",
         "screening.query",
         "tasks.read",
         "tasks.write",
@@ -72,19 +75,21 @@ class B4Router:
         privileged_users: frozenset[str] | None = None,
         web_sources: frozenset[str] | None = None,
         is_privileged: PrivilegeCheck | None = None,
+        review_pending_timeout: float = B4_REVIEW_PENDING_TIMEOUT,
     ) -> None:
-        if pending_timeout <= 0 or ai_pending_timeout <= 0:
+        if pending_timeout <= 0 or ai_pending_timeout <= 0 or review_pending_timeout <= 0:
             raise ValueError("pending timeouts must be positive")
         self._auth = auth_check
         self._b1 = call_b1
         self._b2 = call_b2
         self._b5 = call_b5
         self._source_users = dict(source_users or {})
-        self._pending: dict[tuple[str, str], tuple[str, float]] = {}
+        self._pending: dict[tuple[str, str], tuple[str, float, float]] = {}
         self._lock = asyncio.Lock()
         self._reminders = ReminderStore()
         self._pending_timeout = pending_timeout
         self._ai_pending_timeout = ai_pending_timeout
+        self._review_pending_timeout = review_pending_timeout
         self._privileged = frozenset(privileged_users) if privileged_users else frozenset()
         self._web_sources = frozenset(web_sources) if web_sources else frozenset()
         self._is_privileged = is_privileged
@@ -175,7 +180,7 @@ class B4Router:
                 raise ContractError(code="duplicate_id", message="duplicate request id")
             if len(self._pending) >= MAX_PENDING:
                 raise TransportError(code="temporarily_unavailable", message="too many pending")
-            self._pending[key] = (user_id, time.monotonic())
+            self._pending[key] = (user_id, time.monotonic(), self._deadline_for(action))
         try:
             routed = await self._route(request, user_id)
         finally:
@@ -236,6 +241,7 @@ class B4Router:
         if action in (
             ROUTE_FHIR_READ,
             ROUTE_FHIR_WRITE,
+            ROUTE_DOCUMENT_APPROVE,
             ROUTE_SCREENING,
             "fhir.search",
             *ROUTE_TASKS,
@@ -252,7 +258,9 @@ class B4Router:
                 user_id=user_id,
                 correlation_id=request.correlation_id,
             )
-            reply = await self._with_timeout(self._b2(downstream))
+            reply = await self._with_timeout(
+                self._b2(downstream), timeout=self._deadline_for(action)
+            )
             return self._to_caller(request, reply)
         if action == ROUTE_AI:
             if self._b5 is None:
@@ -279,9 +287,18 @@ class B4Router:
             data_kind=DataKind.METADATA,
         )
 
-    async def _with_timeout(self, awaitable: Awaitable[Envelope]) -> Envelope:
+    def _deadline_for(self, action: str) -> float:
+        if action == ROUTE_DOCUMENT_APPROVE:
+            return self._review_pending_timeout
+        return self._pending_timeout
+
+    async def _with_timeout(
+        self, awaitable: Awaitable[Envelope], *, timeout: float | None = None
+    ) -> Envelope:
         try:
-            return await asyncio.wait_for(awaitable, timeout=self._pending_timeout)
+            return await asyncio.wait_for(
+                awaitable, timeout=self._pending_timeout if timeout is None else timeout
+            )
         except TimeoutError as exc:
             raise TransportError(code="timeout", message="downstream timed out") from exc
 
@@ -307,7 +324,7 @@ class B4Router:
 
     def _prune_locked(self) -> None:
         now = time.monotonic()
-        expired = [k for k, (_, ts) in self._pending.items() if now - ts > self._pending_timeout]
+        expired = [k for k, (_, ts, limit) in self._pending.items() if now - ts > limit]
         for key in expired:
             self._pending.pop(key, None)
 

@@ -12,11 +12,17 @@ import { LegacyProcessNote } from '../shared/LegacyNote'
 import { TaskFacts } from '../shared/TaskFacts'
 import { DoctorCaseTable } from './DoctorCaseTable'
 import { SourceReviewPanel } from './SourceReviewPanel'
+import { UploadPanel } from './UploadPanel'
+import type { UploadCapability } from '../../data/backend/uploads'
 
-type DoctorViewProps = RoleViewProps & ClinicianNavigation
+type DoctorViewProps = RoleViewProps & ClinicianNavigation & {
+  readonly uploads?: UploadCapability | null
+  readonly uploadCaseId?: string | null
+  readonly mockMode?: boolean
+}
 
 /** Referring doctor: a neutral demo case list, then one case per page (referral and next step first, extraction review after). */
-export function DoctorView({ workspace, detail, actions, route, onNavigate, onReturn, authed }: DoctorViewProps) {
+export function DoctorView({ workspace, detail, actions, route, onNavigate, onReturn, authed, uploads, uploadCaseId, mockMode }: DoctorViewProps) {
   const backend = workspace.status === 'ready' && workspace.value.metadata.origin === 'backend'
   const listLead = !backend ? 'Případy ze sdílené ukázkové fronty. Nejde o seznam vašich pacientů ani o přihlášení.'
     : authed ? 'Případy ze zdroje IRIS. Přihlášení ověřuje server; nejde o seznam vašich pacientů.'
@@ -66,7 +72,12 @@ export function DoctorView({ workspace, detail, actions, route, onNavigate, onRe
                         </NextStep>
                         <AttentionPanel detail={value} role="lekar" onNavigate={onNavigate} />
                       </div>
-                      <SourceReviewPanel fields={value.doctor.sourceFields} documents={value.documents} actions={actions} />
+                      <div className="stack">
+                        <SourceReviewPanel fields={value.doctor.sourceFields} documents={value.documents} actions={actions} />
+                        {route.page === 'detail' && uploadCaseId === route.caseId && (
+                          <UploadPanel capability={uploads ?? null} caseId={route.caseId} mockMode={mockMode ?? false} />
+                        )}
+                      </div>
                     </div>
                   </>
                 } />

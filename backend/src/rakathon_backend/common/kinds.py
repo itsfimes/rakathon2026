@@ -8,6 +8,7 @@ _REQUEST_KINDS: dict[str, DataKind] = {
     "fhir.search": DataKind.METADATA,
     "screening.query": DataKind.METADATA,
     "fhir.write": DataKind.FHIR,
+    "document.approve": DataKind.FHIR,
     "tasks.read": DataKind.METADATA,
     "tasks.write": DataKind.PROPRIETARY,
     "tasks.ack": DataKind.METADATA,

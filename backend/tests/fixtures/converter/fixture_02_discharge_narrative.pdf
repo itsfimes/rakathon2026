@@ -1,0 +1,67 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 991 >>
+stream
+BT /F1 13 Tf 72 740 Td (SYNTHETIC TEST ONLY - NOT REAL PATIENT DATA) Tj ET
+BT /F1 10 Tf 72 718 Td (HARBOURVIEW HOSPITAL - DISCHARGE SUMMARY DS-2) Tj ET
+BT /F1 10 Tf 72 704 Td (PAT: YARROW, YUSUF TEST-002 | MRN: SYN-000002 | DOB: 1990-06-15) Tj ET
+BT /F1 10 Tf 72 690 Td (ADMIT: 2026-03-01 | DISCHARGE: 2026-03-04 | WARD: 3B-SYNTH) Tj ET
+BT /F1 10 Tf 72 676 Td (ATTENDING: DR. INVENTED IBIS-9 | VISIT: HV-2026-0002) Tj ET
+BT /F1 10 Tf 72 662 Td () Tj ET
+BT /F1 10 Tf 72 648 Td (CHIEF COMPLAINT: Synthetic test cough for 3 days.) Tj ET
+BT /F1 10 Tf 72 634 Td (HISTORY: Invented scenario. No real encounter occurred.) Tj ET
+BT /F1 10 Tf 72 620 Td (COURSE: Routine synthetic observation. Vitals stable.) Tj ET
+BT /F1 10 Tf 72 606 Td (MEDS AT DISCHARGE:) Tj ET
+BT /F1 10 Tf 72 592 Td (- Drugaphen 250 mg by mouth twice daily for 5 days) Tj ET
+BT /F1 10 Tf 72 578 Td (- Placebosol 10 mL at bedtime as needed) Tj ET
+BT /F1 10 Tf 72 564 Td (FOLLOWUP: Synthetic clinic in 7 days. PAGE 1 OF 2.) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 618 >>
+stream
+BT /F1 13 Tf 72 740 Td (SYNTHETIC TEST ONLY - NOT REAL PATIENT DATA) Tj ET
+BT /F1 10 Tf 72 718 Td (HARBOURVIEW DS-2 CONTINUED - PAGE 2 OF 2) Tj ET
+BT /F1 10 Tf 72 704 Td (PAT: YARROW, YUSUF TEST-002 | MRN: SYN-000002) Tj ET
+BT /F1 10 Tf 72 690 Td (DIAGNOSES: J06.9 Synthetic upper airway test case) Tj ET
+BT /F1 10 Tf 72 676 Td (PROCEDURES: None. Labs: synthetic panel only.) Tj ET
+BT /F1 10 Tf 72 662 Td (INSTRUCTIONS: Rest, fluids, return if worsens.) Tj ET
+BT /F1 10 Tf 72 648 Td (CONTACT: Synthetic line 555-0100. No real PHI.) Tj ET
+BT /F1 10 Tf 72 634 Td (SIGN: DR. INVENTED IBIS-9 | 2026-03-04 12:00 UTC) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Title (SYNTHETIC TEST ONLY) /Producer (converter-fixture-gen stdlib) /CreationDate (D:20260101000000Z) >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000197 00000 n 
+0000000323 00000 n 
+0000001364 00000 n 
+0000001490 00000 n 
+0000002158 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R /Info 8 0 R /ID [<AAAAAAAAAAAAAAAA> <BBBBBBBBBBBBBBBB>] >>
+startxref
+2283
+%%EOF

@@ -9,6 +9,12 @@ from typing import Any
 import httpx
 
 from rakathon_backend.b2.iris.config import TRUSTED_REMOTE_BASE, IrisFhirConfig
+from rakathon_backend.b2.iris.newreview import (
+    check_review_bundle,
+    check_transaction_response,
+    outcome_has_error,
+    resources_match,
+)
 from rakathon_backend.b2.iris.pagination import collect
 from rakathon_backend.common.errors import ContractError, TransportError
 from rakathon_backend.common.fhir import ALLOWED_TYPES, check_bundle, check_resource
@@ -78,6 +84,22 @@ class DirectFhirAdapter:
         if rid is None:
             return f"/{resource_type}"
         return f"/{resource_type}/{rid}"
+
+    def _post_json(self, path: str, payload: dict[str, Any]) -> httpx.Response:
+        data = json.dumps(payload).encode("utf-8")
+        if len(data) > MAX_BODY:
+            raise ContractError(code="too_large", message="payload too large")
+        try:
+            response = self._client.post(
+                path,
+                content=data,
+                headers={"Content-Type": "application/fhir+json"},
+            )
+        except Exception as exc:
+            raise TransportError(code="bridge_error", message="iris unreachable") from exc
+        if response.status_code in (401, 403):
+            raise ContractError(code="auth_failed", message="iris request failed")
+        return response
 
     def _fail(self, response: httpx.Response) -> ContractError:
         text = ""
@@ -192,19 +214,7 @@ class DirectFhirAdapter:
         entries = bundle.get("entry")
         if not isinstance(entries, list) or not entries:
             raise ContractError(code="bad_payload", message="transaction needs entries")
-        payload = json.dumps(bundle).encode("utf-8")
-        if len(payload) > MAX_BODY:
-            raise ContractError(code="too_large", message="transaction too large")
-        try:
-            response = self._client.post(
-                "/",
-                content=payload,
-                headers={"Content-Type": "application/fhir+json"},
-            )
-        except Exception as exc:
-            raise TransportError(code="bridge_error", message="iris unreachable") from exc
-        if response.status_code in (401, 403):
-            raise ContractError(code="auth_failed", message="iris request failed")
+        response = self._post_json("/", bundle)
         if response.status_code not in (200, 201):
             raise self._fail(response)
         try:
@@ -229,3 +239,77 @@ class DirectFhirAdapter:
                     if sev in ("error", "fatal"):
                         raise ContractError(code="remote_error", message="transaction entry failed")
         return body
+
+    def review_transaction(self, bundle: dict[str, Any], patient_id: str) -> dict[str, Any]:
+        guards = check_review_bundle(bundle, patient_id)
+        patient_ref = str(guards["patient_ref"])
+        pid = str(guards["patient_id"])
+        raw_targets = guards["targets"]
+        targets: list[tuple[str, str]] = (
+            [(str(a), str(b)) for a, b in raw_targets] if isinstance(raw_targets, list) else []
+        )
+        found_patient = self.read("Patient", pid)
+        if found_patient is None:
+            raise ContractError(code="missing_patient", message="selected patient is missing")
+        raw_entries = bundle.get("entry")
+        entries: list[dict[str, Any]] = (
+            [item for item in raw_entries if isinstance(item, dict)]
+            if isinstance(raw_entries, list)
+            else []
+        )
+        wanted: list[dict[str, Any]] = []
+        for item in entries:
+            resource = item.get("resource")
+            if isinstance(resource, dict):
+                wanted.append(resource)
+        seen: list[dict[str, Any] | None] = []
+        for rtype, rid in targets:
+            seen.append(self.read(rtype, rid))
+        if all(item is not None for item in seen):
+            existing = [item for item in seen if isinstance(item, dict)]
+            if len(existing) == len(wanted) and all(
+                resources_match(left, right) for left, right in zip(wanted, existing, strict=True)
+            ):
+                receipt = [
+                    {"resource": item, "response": {"status": "200 OK"}} for item in existing
+                ]
+                return {
+                    "resourceType": "Bundle",
+                    "type": "transaction-response",
+                    "entry": receipt,
+                    "alreadyApplied": True,
+                    "patientRef": patient_ref,
+                }
+            raise ContractError(
+                code="import_conflict", message="review import conflicts with existing resources"
+            )
+        if any(item is not None for item in seen):
+            raise ContractError(
+                code="import_conflict", message="review import conflicts with existing resources"
+            )
+        for resource in wanted:
+            rtype = str(resource.get("resourceType"))
+            path = "/" + rtype + "/$validate?mode=create"
+            validation = self._post_json(path, resource)
+            if validation.status_code != 200:
+                raise ContractError(
+                    code="validation_unavailable", message="server validation is unavailable"
+                )
+            if len(validation.content) > MAX_BODY:
+                raise ContractError(code="validation_failed", message="server validation failed")
+            try:
+                outcome = validation.json()
+            except Exception as exc:
+                raise ContractError(
+                    code="validation_failed", message="server validation failed"
+                ) from exc
+            if outcome_has_error(outcome):
+                raise ContractError(code="validation_failed", message="server validation failed")
+        posted = self._post_json("/", bundle)
+        if posted.status_code not in (200, 201):
+            raise self._fail(posted)
+        try:
+            answer = posted.json()
+        except Exception as exc:
+            raise ContractError(code="remote_error", message="iris response invalid") from exc
+        return check_transaction_response(answer, targets)

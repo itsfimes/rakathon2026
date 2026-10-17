@@ -9,10 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from rakathon_backend.web.config import (
+    MAX_ARTIFACT_BYTES,
     MAX_BODY_BYTES,
     MAX_HEADER_CHARS,
     MAX_PATH_CHARS,
     MAX_RESPONSE_BYTES,
+    MAX_REVIEW_BODY_BYTES,
+    MAX_UPLOAD_BYTES,
     listener_authority,
 )
 from rakathon_backend.web.router import AuthHTTPRouter
@@ -20,6 +23,26 @@ from rakathon_backend.web.router import AuthHTTPRouter
 MAX_WORKERS = 16
 REQUEST_TIMEOUT = 10.0
 ALLOW_BIND = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+def _is_review_post(path: str, command: str) -> bool:
+    if command != "POST":
+        return False
+    if "/review/draft" in path or "/review/approve" in path:
+        return path.startswith("/api/v1/uploads/")
+    return False
+
+
+def _is_upload_post(path: str, command: str) -> bool:
+    if command != "POST":
+        return False
+    return path.startswith("/api/v1/cases/") and path.endswith("/uploads")
+
+
+def _is_artifact_get(path: str, command: str) -> bool:
+    if command != "GET":
+        return False
+    return path.startswith("/api/v1/uploads/")
 
 
 def check_bind_host(bind: str) -> str:
@@ -136,7 +159,10 @@ class _AuthHandler(BaseHTTPRequestHandler):
         getter = getattr(self.headers, "get_all", None)
         dup_check: dict[str, int] = {}
         if callable(getter):
-            for name in ("Content-Length", "X-Rakathon-Proxy-Key", "Origin", "Cookie", "Host"):
+            names = ["Content-Length", "X-Rakathon-Proxy-Key", "Origin", "Cookie", "Host"]
+            if _is_upload_post(path, self.command):
+                names += ["Content-Type", "X-Upload-Name", "X-CSRF-Token"]
+            for name in names:
                 try:
                     values = getter(name) or []
                 except (ValueError, AttributeError):
@@ -157,6 +183,16 @@ class _AuthHandler(BaseHTTPRequestHandler):
             if dup_check.get("Host", 0) > 1:
                 self._refuse(400, {})
                 return
+            if _is_upload_post(path, self.command):
+                if dup_check.get("Content-Type", 0) > 1:
+                    self._refuse(400, {})
+                    return
+                if dup_check.get("X-Upload-Name", 0) > 1:
+                    self._refuse(400, {})
+                    return
+                if dup_check.get("X-CSRF-Token", 0) > 1:
+                    self._refuse(400, {})
+                    return
         total_headers = sum(len(str(k)) + len(str(v)) for k, v in self.headers.items())
         if total_headers > MAX_HEADER_CHARS * 4:
             self._refuse(413, {})
@@ -173,8 +209,13 @@ class _AuthHandler(BaseHTTPRequestHandler):
             except ValueError:
                 self._refuse(400, {})
                 return
-            if length < 0 or length > MAX_BODY_BYTES:
-                self._refuse(413 if length > MAX_BODY_BYTES else 400, {})
+            cap = (
+                MAX_REVIEW_BODY_BYTES
+                if _is_review_post(path, self.command)
+                else (MAX_UPLOAD_BYTES if _is_upload_post(path, self.command) else MAX_BODY_BYTES)
+            )
+            if length < 0 or length > cap:
+                self._refuse(413 if length > cap else 400, {})
                 return
             try:
                 data = self.rfile.read(length) if length > 0 else b""
@@ -208,6 +249,28 @@ class _AuthHandler(BaseHTTPRequestHandler):
             for key, value in out_headers.items():
                 self.send_header(key, value)
             self.end_headers()
+            return
+        if isinstance(payload, (bytes, bytearray)):
+            raw_bin = bytes(payload)
+            cap = MAX_ARTIFACT_BYTES if _is_artifact_get(path, self.command) else MAX_BODY_BYTES
+            if len(raw_bin) > MAX_ARTIFACT_BYTES or (
+                not _is_artifact_get(path, self.command) and len(raw_bin) > cap
+            ):
+                self._refuse(503, {})
+                return
+            self.send_response(status)
+            ctype = str(out_headers.get("Content-Type", "application/octet-stream"))
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(raw_bin)))
+            self.send_header("Cache-Control", "no-store")
+            for key, value in out_headers.items():
+                if key.lower() == "content-type":
+                    continue
+                self.send_header(key, value)
+            self.end_headers()
+            if self.command != "HEAD":
+                with contextlib.suppress(OSError):
+                    self.wfile.write(raw_bin)
             return
         try:
             raw = json.dumps(payload).encode("utf-8")

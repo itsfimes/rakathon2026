@@ -186,10 +186,11 @@ export function App({ boot, authed, lockedView }: { readonly boot: Promise<Boots
 
   const roleProps = { workspace, detail, actions, route, onNavigate: navigate, detailFresh: contextFresh, authed }
   const clinicianNav = { route, onNavigate: navigate, onReturn: returnToList }
+  const uploadCaseId = route.page === 'detail' && route.view !== 'mdt' ? route.caseId : null
   const views: Record<ViewId, ReactNode> = {
     koordinator: <CoordinatorView {...roleProps} {...clinicianNav} />,
     pacient: <PatientRoleView {...roleProps} />,
-    lekar: <DoctorView {...roleProps} {...clinicianNav} />,
+    lekar: <DoctorView {...roleProps} {...clinicianNav} uploads={gateway?.uploads ?? null} uploadCaseId={uploadCaseId} mockMode={session?.mode === 'mock'} />,
     mdt: <MdtView {...roleProps} {...clinicianNav} />,
     specimen: <SpecimenView />,
   }

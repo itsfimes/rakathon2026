@@ -4,6 +4,7 @@ import { BackendAssistant, UnconfiguredAssistant } from './assistant'
 import { caseDTO, sessionDTO, workspaceDTO } from './dto'
 import { projectCase, projectWorkspace } from './projection'
 import { jsonBody } from './http'
+import { BackendUploads } from './uploads'
 
 const unavailable = () => failure('unavailable', 'Backend není dostupný nebo neposkytl platná úplná data.')
 const aborted = () => failure('aborted', 'Požadavek byl zrušen.')
@@ -15,7 +16,10 @@ export interface BackendHooks {
 export type AuthRequestHooks = BackendHooks
 export class BackendGateway implements Gateway {
   readonly mode = 'backend' as const
-  constructor(private readonly ready = true, private readonly fetcher: typeof fetch = (input, init) => globalThis.fetch(input, init), private readonly hooks: BackendHooks = {}) {}
+  readonly uploads: BackendUploads
+  constructor(private readonly ready = true, private readonly fetcher: typeof fetch = (input, init) => globalThis.fetch(input, init), private readonly hooks: BackendHooks = {}) {
+    this.uploads = new BackendUploads(ready, fetcher, hooks)
+  }
 
   private async read<T>(path: string, decode: (value: unknown) => T, signal?: AbortSignal): Promise<Result<T>> {
     if (signal?.aborted) return aborted()

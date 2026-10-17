@@ -1,0 +1,51 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 1097 >>
+stream
+BT /F1 13 Tf 72 740 Td (SYNTHETIC TEST ONLY - NOT REAL PATIENT DATA) Tj ET
+BT /F1 10 Tf 72 718 Td (NOVA-CARE HOSPITAL - CODED LAB REPORT - FORM LC-7 REV 4) Tj ET
+BT /F1 10 Tf 72 704 Td (FAC: NCH-SYNTH-07 | DEPT: LAB | PANEL: METAB-7S) Tj ET
+BT /F1 10 Tf 72 690 Td (PAT: ZEBRA, ZELDA TEST-001 | MRN: SYN-000001 | DOB: 2000-01-31) Tj ET
+BT /F1 10 Tf 72 676 Td (VISIT: LV-2026-0001 | COLLECTED: 2026-02-02 08:10 UTC | RPT: 2026-02-02 10:00 UTC) Tj ET
+BT /F1 10 Tf 72 662 Td () Tj ET
+BT /F1 10 Tf 72 648 Td (CODED RESULTS \(CODE | VALUE | UNIT | REF | FLAG\):) Tj ET
+BT /F1 10 Tf 72 634 Td (TST^GLU-F: 102 | mg/dL | 70-99 | H) Tj ET
+BT /F1 10 Tf 72 620 Td (TST^NA-S: 140 | mmol/L | 136-145 | N) Tj ET
+BT /F1 10 Tf 72 606 Td (TST^K-S: 4.1 | mmol/L | 3.5-5.1 | N) Tj ET
+BT /F1 10 Tf 72 592 Td (TST^CRE-S: 0.9 | mg/dL | 0.6-1.1 | N) Tj ET
+BT /F1 10 Tf 72 578 Td (TST^HGB-B: 13.5 | g/dL | 12.0-16.0 | N) Tj ET
+BT /F1 10 Tf 72 564 Td () Tj ET
+BT /F1 10 Tf 72 550 Td (OPERATOR: SYN-OP-12 | VERIFIED: YES | PAGE 1 OF 1) Tj ET
+BT /F1 10 Tf 72 536 Td (NOTE: SYNTHETIC VALUES FOR CONVERTER TESTING ONLY.) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Title (SYNTHETIC TEST ONLY) /Producer (converter-fixture-gen stdlib) /CreationDate (D:20260101000000Z) >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000191 00000 n 
+0000000317 00000 n 
+0000001465 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R /Info 6 0 R /ID [<AAAAAAAAAAAAAAAA> <BBBBBBBBBBBBBBBB>] >>
+startxref
+1590
+%%EOF

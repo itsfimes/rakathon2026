@@ -26,6 +26,8 @@ AI_ASK = "ai.ask"
 REMINDERS_READ = "reminders.read"
 WATCHDOG_TICK = "watchdog.tick"
 AUTHORIZE = "authorize"
+DOCUMENT_UPLOAD = "document.upload"
+DOCUMENT_APPROVE = "document.approve"
 
 ACTIONS = frozenset(
     {
@@ -45,6 +47,8 @@ ACTIONS = frozenset(
         REMINDERS_READ,
         WATCHDOG_TICK,
         AUTHORIZE,
+        DOCUMENT_UPLOAD,
+        DOCUMENT_APPROVE,
     }
 )
 

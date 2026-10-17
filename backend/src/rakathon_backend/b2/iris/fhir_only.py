@@ -17,6 +17,9 @@ class FhirOnlyStorage:
     def fhir_transaction(self, bundle: dict[str, Any]) -> dict[str, Any]:
         return self._fhir.transaction(dict(bundle))
 
+    def fhir_review_transaction(self, bundle: dict[str, Any], patient_id: str) -> dict[str, Any]:
+        return self._fhir.review_transaction(dict(bundle), str(patient_id))
+
     def fhir_read(self, resource_type: str, rid: str) -> dict[str, Any] | None:
         return self._fhir.read(resource_type, rid)
 

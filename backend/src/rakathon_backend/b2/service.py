@@ -7,6 +7,8 @@ from typing import Any, Protocol
 from rakathon_backend.b2.collection import bounded_reply, collection_payload, read_collection
 from rakathon_backend.b2.ingestion import import_context_present, persist_import
 from rakathon_backend.b2.ports import Storage
+from rakathon_backend.b2.review_action import ACTION as DOCUMENT_APPROVE
+from rakathon_backend.b2.review_action import handle_document_approve
 from rakathon_backend.b2.screening import endpoint as screening_endpoint
 from rakathon_backend.b2.screening.ports import ScreeningPort
 from rakathon_backend.b2.validation import (
@@ -79,6 +81,7 @@ class B2Service:
             "fhir.read",
             "fhir.search",
             "fhir.write",
+            "document.approve",
             "screening.query",
             "tasks.read",
             "tasks.write",
@@ -97,6 +100,8 @@ class B2Service:
             return await self._screening_query(request)
         if action == "fhir.write":
             return await self._fhir_write(request)
+        if action == DOCUMENT_APPROVE:
+            return await handle_document_approve(self._store, self._mode, request)
         if action == "tasks.read":
             return await self._tasks_read(request)
         if action == "tasks.write":

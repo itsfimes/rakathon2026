@@ -93,12 +93,16 @@ async def test_pending_cap_and_prune() -> None:
     router = B4Router(_allow_all, None, never, None, {"frontend:coordinator": "coordinator"})
     fresh = time.monotonic()
     for index in range(MAX_PENDING):
-        router._pending[("frontend:coordinator", f"r-{index}")] = ("coordinator", fresh)
+        router._pending[("frontend:coordinator", f"r-{index}")] = (
+            "coordinator",
+            fresh,
+            router._pending_timeout,
+        )
     with pytest.raises(TransportError):
         await router.handle(_front("r-new"))
     assert router.pending_count() == MAX_PENDING
     for key in list(router._pending):
-        router._pending[key] = ("coordinator", 1.0)
+        router._pending[key] = ("coordinator", 1.0, router._pending_timeout)
     router._b2 = ok_reply
     reply = await router.handle(_front("r-fresh"))
     assert reply.request_id == "r-fresh"

@@ -1,6 +1,7 @@
 import type { BootstrapResult } from './contracts'
 import { parseDataMode } from './mode'
 import { UnconfiguredAssistant } from './backend/assistant'
+import { createBackendSession, validApiBase } from './backend/gateway'
 
 export async function bootstrap(signal?: AbortSignal): Promise<BootstrapResult> {
   const mode = parseDataMode(import.meta.env.VITE_DATA_MODE)
@@ -12,7 +13,6 @@ export async function bootstrap(signal?: AbortSignal): Promise<BootstrapResult> 
   }
 
   if (import.meta.env.VITE_BACKEND_API_BASE !== undefined) {
-    const { createBackendSession, validApiBase } = await import('./backend/gateway')
     if (!validApiBase(import.meta.env.VITE_BACKEND_API_BASE)) return { status: 'configuration-error', error: {
       code: 'configuration-error', message: 'VITE_BACKEND_API_BASE musí být přesně /api/v1 (stejný původ).',
     } }
