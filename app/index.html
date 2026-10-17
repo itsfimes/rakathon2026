@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Atlas</title>
+    <!-- Cascade layer order MUST be declared here, before any stylesheet that opens a layer block.
+         Layer order is fixed by first appearance, and feature stylesheets (auth.css, uploadPanel.css)
+         are injected before styles/index.css, so declaring it there put `components` before `base` and
+         let element rules like `a { color }` win over every component/layout rule. -->
+    <style>@layer tokens, base, components, layout, theme;</style>
   </head>
   <body>
     <div id="root"></div>

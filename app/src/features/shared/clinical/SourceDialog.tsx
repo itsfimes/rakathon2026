@@ -8,6 +8,8 @@ interface SourceDialogProps {
   /** Compact trigger text, same wording as the inline disclosure. */
   readonly summary: string
   readonly title: string
+  /** Fuller accessible name when the visible trigger text is shortened (dense tables). */
+  readonly label?: string | undefined
   readonly children: ReactNode
 }
 
@@ -15,13 +17,13 @@ interface SourceDialogProps {
     so opening it never changes the row, the column widths or the page scroll. The browser handles
     Escape, focus containment and background inertness; focus returns to the exact trigger on close.
     A case/revision change remounts (scope key) and closes it without moving focus. */
-export function SourceDialog({ summary, title, children }: SourceDialogProps) {
+export function SourceDialog({ summary, title, label, children }: SourceDialogProps) {
   const { key, live } = useDetailScope()
   if (!live) return <p className="source-trigger source-trigger--pending"><Icon name="clock" />{summary} · podrobnosti po načtení aktuálního stavu</p>
-  return <ScopedSourceDialog key={key} summary={summary} title={title}>{children}</ScopedSourceDialog>
+  return <ScopedSourceDialog key={key} summary={summary} title={title} label={label}>{children}</ScopedSourceDialog>
 }
 
-function ScopedSourceDialog({ summary, title, children }: SourceDialogProps) {
+function ScopedSourceDialog({ summary, title, label, children }: SourceDialogProps) {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -46,7 +48,7 @@ function ScopedSourceDialog({ summary, title, children }: SourceDialogProps) {
   }
 
   return <>
-    <button ref={trigger} type="button" className="source-trigger" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+    <button ref={trigger} type="button" className="source-trigger" aria-haspopup="dialog" aria-label={label} onClick={() => setOpen(true)}>
       <Icon name="file" /><span>{summary}</span>
     </button>
     {open && createPortal(

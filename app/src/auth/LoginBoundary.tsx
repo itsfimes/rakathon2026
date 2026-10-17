@@ -245,13 +245,5 @@ function AuthGate() {
     )
   }
 
-  return (
-    <>
-      <div className="authbar" role="region" aria-label="Přihlášení">
-        <span className="authbar__label"><Icon name="person" />Přihlášeno: {identity.username}</span>
-        <span className="authbar__detail">Přihlášení ověřuje server. Zobrazení určuje vaše role.</span>
-      </div>
-      <App key={generation} boot={boot} authed lockedView={demoView} onLogout={handleLogout} loggingOut={loggingOut} />
-    </>
-  )
+  return <App key={generation} boot={boot} authed lockedView={demoView} onLogout={handleLogout} loggingOut={loggingOut} />
 }

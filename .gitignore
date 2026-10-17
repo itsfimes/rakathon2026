@@ -11,6 +11,7 @@ app/dist/
 app/dist-mock/
 app/.vite/
 app/coverage/
+app/tsconfig.tsbuildinfo
 app/.env
 app/.env.*
 !app/.env.example

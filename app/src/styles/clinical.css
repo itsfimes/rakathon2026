@@ -64,6 +64,47 @@
   .culture { margin-top: var(--s-2); font-size: var(--fs-sm); }
   .table td .disclosure { margin-top: var(--s-2); }
 
+  /* Lab results: grouped by panel + dates, the value/unit pair is the scan line, absent fields one quiet dash. */
+  .lab-table td, .lab-table tbody th { padding: var(--s-2) var(--s-3); vertical-align: baseline; }
+  .lab-table tbody th { background: none; color: var(--c-ink); font-size: var(--type-data); font-weight: var(--fw-regular); white-space: normal; text-align: left; border-bottom: var(--border) solid var(--c-line-soft); }
+  .lab-table tbody tr:last-child > * { border-bottom: 0; }
+  .lab-table__test { min-width: 12rem; }
+  .lab-table__test .fact__tags { margin-left: var(--s-2); }
+  .lab-table__name { font-weight: var(--fw-medium); overflow-wrap: anywhere; }
+  .lab-table .lab-table__num { text-align: right; }
+  .lab-table__value { white-space: nowrap; padding-right: var(--s-1); }
+  .lab-table__value .num { font-size: var(--fs-md); font-weight: var(--fw-bold); }
+  .lab-table__unit { padding-left: 0; color: var(--c-ink-muted); white-space: nowrap; }
+  .lab-table__range { white-space: nowrap; }
+  .lab-table__source .source-trigger { min-height: 0; }
+  .meas-more { padding: var(--s-2) var(--s-3) var(--s-3); border-top: var(--border) solid var(--c-line-soft); }
+  /* Entry lists: shared date + source printed once per group, entries below without per-entry filler. */
+  .entry-group { display: grid; gap: var(--s-2); }
+  .entry-group + .entry-group { margin-top: var(--s-4); }
+  .entry-group__head { padding: var(--s-1) var(--s-2); background: var(--c-surface-sunken); border-radius: var(--radius); color: var(--c-ink-muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+  .lab-missing { color: var(--c-ink-muted); }
+  .lab-table tbody + tbody .lab-table__group th { border-top: var(--border) solid var(--c-line); }
+  .lab-table .lab-table__group th { display: table-cell; white-space: normal; text-align: left; color: var(--c-ink); font-size: var(--type-data); font-weight: var(--fw-regular); padding: var(--s-2) var(--s-3); background: var(--c-surface-sunken); border-bottom: var(--border) solid var(--c-line-soft); }
+  .lab-table__panel { font-weight: var(--fw-bold); margin-right: var(--s-3); }
+  .lab-table__dates { color: var(--c-ink-muted); font-size: var(--fs-xs); margin-right: var(--s-3); }
+  @media (max-width: 760px) {
+    .lab-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .lab-table, .lab-table tbody, .lab-table caption { display: block; width: 100%; }
+    .lab-table .lab-table__group { display: block; }
+    .lab-table .lab-table__group th { display: block; }
+    .lab-table__dates { display: block; }
+    .lab-table__row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--s-2); padding: var(--s-2) var(--s-3); border-bottom: var(--border) solid var(--c-line-soft); }
+    .lab-table tbody tr:last-child { border-bottom: 0; }
+    .lab-table .lab-table__row > th, .lab-table .lab-table__row > td { display: block; padding: 0; border: 0; }
+    .lab-table__row > .lab-table__test { flex: 1 1 10rem; min-width: 0; }
+    .lab-table__row > .lab-table__range, .lab-table__row > .lab-table__flag { font-size: var(--fs-xs); color: var(--c-ink-muted); }
+    .lab-table__row:has(> .lab-table__range)::after { content: ""; order: 1; flex-basis: 100%; }
+    .lab-table__row > .lab-table__range, .lab-table__row > .lab-table__flag, .lab-table__row > .lab-table__source { order: 2; white-space: normal; }
+    .lab-table__row > .lab-table__range + .lab-table__flag::before { content: "· " attr(data-label) ": "; }
+    .lab-table__row > .lab-table__range::before, .lab-table__row > .lab-table__flag::before { content: attr(data-label) ": "; }
+    .lab-table__source .source-trigger { min-height: var(--target-touch); }
+  }
+
   /* Source inspection */
   .source-list { display: grid; gap: var(--s-3); list-style: none; padding: 0; margin: var(--s-2) 0 0; }
   .source-list > li { padding: var(--s-2) var(--s-3); border: var(--border) solid var(--c-line-soft); border-radius: var(--radius); background: var(--c-surface-sunken); }

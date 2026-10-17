@@ -1,5 +1,6 @@
-/* Layer order: tokens → base → components → layout → theme (theme overrides everything). */
-@layer tokens, base, components, layout, theme;
+/* Layer order: tokens → base → components → layout → theme (theme overrides everything).
+   The order is declared in index.html: layer order is fixed by first appearance, and the feature
+   stylesheets that open layer blocks are injected before this file. See index.html for the detail. */
 @import "./tokens.css";
 @import "./base.css";
 @import "./components.css";

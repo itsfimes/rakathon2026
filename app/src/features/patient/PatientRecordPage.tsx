@@ -1,12 +1,15 @@
 import type { ReactNode } from 'react'
 import { Notice } from '../../components/ui/Notice'
 import { Panel, PanelBody } from '../../components/ui/Panel'
-import { StackCell, Table } from '../../components/ui/Table'
 import { Tag } from '../../components/ui/Tag'
-import type { PatientMedication, PatientRecord, PatientRecordEntry } from '../../data/patientRecord'
+import type { PatientMeasurement, PatientMedication, PatientRecord, PatientRecordEntry, PatientResult } from '../../data/patientRecord'
 import type { StatusLabel } from '../../lib/labels'
 import { Fields } from '../shared/clinical/FactBlock'
-import { clinicalTimeText, HISTORY_CATEGORY, MEASUREMENT_TYPE, SUSCEPTIBILITY } from '../shared/clinical/clinicalText'
+import { clinicalTimeText, HISTORY_CATEGORY, SUSCEPTIBILITY } from '../shared/clinical/clinicalText'
+import { FoldToggle, GroupedTable, Missing } from '../shared/clinical/GroupedTable'
+import { ENTRIES, groupInOrder, labTimes, MEASUREMENT_COLUMNS, measurementSessions, SESSION_FOLD, SESSION_LIMIT, sharedValue, useFolded, VALUES } from '../shared/clinical/grouping'
+import type { Column } from '../shared/clinical/grouping'
+import { MeasurementCells } from '../shared/clinical/MeasurementTable'
 import { CoverageNotice } from '../shared/clinical/CoverageNotice'
 
 /** Plain-language state words for the patient; no internal review, conflict IDs or source references. */
@@ -27,21 +30,71 @@ function EntryTags({ entry }: { readonly entry: PatientRecordEntry<unknown> }) {
   return labels.length ? <span className="fact__tags">{labels.map(label => <Tag key={label.text} label={label} />)}</span> : null
 }
 
-function SourceLine({ entry, timeLabel = 'Kdy' }: { readonly entry: PatientRecordEntry<unknown>; readonly timeLabel?: string }) {
-  const sources = entry.sourceStatus === 'resolved' && entry.sources.length > 0
-    ? entry.sources.map(source => `${source.label}, vydáno ${clinicalTimeText(source.issued)}`).join('; ')
-    : 'zdroj nelze určit'
-  return <p className="fact__meta">{timeLabel}: {clinicalTimeText(entry.effective)} · Zdroj: {sources}</p>
-}
+const sourceText = (entry: PatientRecordEntry<unknown>) => entry.sourceStatus === 'resolved' && entry.sources.length > 0
+  ? entry.sources.map(source => `${source.label}, vydáno ${clinicalTimeText(source.issued)}`).join('; ')
+  : 'zdroj nelze určit'
 
-function Entry({ entry, title, children, timeLabel }: { readonly entry: PatientRecordEntry<unknown>; readonly title: ReactNode; readonly children?: ReactNode; readonly timeLabel?: string }) {
+function Entry({ entry, title, children }: { readonly entry: PatientRecordEntry<unknown>; readonly title: ReactNode; readonly children?: ReactNode }) {
   return (
     <article className="fact">
       <div className="fact__head"><h3 className="fact__title">{title}</h3><EntryTags entry={entry} /></div>
       {children && <div className="fact__body">{children}</div>}
-      <SourceLine entry={entry} {...(timeLabel ? { timeLabel } : {})} />
     </article>
   )
+}
+
+/** Entries sharing date and source are listed under ONE line "Kdy · Zdroj" instead of repeating it per entry (source order kept).
+    Long lists fold after a few groups behind one explicit toggle. */
+function EntryGroups<T>({ entries, timeLabel = 'Kdy', limit = 4, budget = 6, render }: {
+  readonly entries: readonly PatientRecordEntry<T>[]
+  readonly timeLabel?: string
+  readonly limit?: number
+  readonly budget?: number
+  readonly render: (entry: PatientRecordEntry<T>, index: number) => ReactNode
+}) {
+  const groups = groupInOrder(entries, entry => `${timeLabel}: ${clinicalTimeText(entry.effective)} · Zdroj: ${sourceText(entry)}`)
+  const folded = useFolded(groups, limit, budget)
+  return <>
+    {folded.shown.map(group => (
+      <section key={group.key} className="entry-group">
+        <p className="entry-group__head">{group.key}</p>
+        <div className="fact-list">{group.items.map(entry => render(entry, entries.indexOf(entry)))}</div>
+      </section>
+    ))}
+    <FoldToggle fold={{ unit: 'skupiny', items: ENTRIES }} expanded={folded.expanded} hiddenGroups={folded.hiddenGroups} hiddenItems={folded.hiddenItems} onToggle={folded.toggle} />
+  </>
+}
+
+const RESULT_COLUMNS: readonly Column[] = [{ label: 'Vyšetření' }, { label: 'Výsledek', numeric: true }, { label: 'Jednotka' }, { label: 'Rozmezí podle zprávy' }, { label: 'Označení ve zprávě' }]
+
+/** Results grouped by sample date, result date and source; those lines appear once per group instead of four lines per row. */
+function ResultsTable({ results }: { readonly results: readonly PatientRecordEntry<PatientResult>[] }) {
+  const groups = groupInOrder(results, entry => JSON.stringify([...labTimes(entry.value, entry.effective), sourceText(entry)])).map(group => {
+    const first = group.items[0]!
+    const [title, ...times] = labTimes(first.value, first.effective)
+    const note = sharedValue(group.items, entry => entry.value.suppliedNote)
+    return { key: group.key, items: group.items, title, meta: [...times, `Zdroj: ${sourceText(first)}`, ...note ? [note] : []] }
+  })
+  return <GroupedTable labelledBy="t-pr-results" caption="„—“ = ve zprávě neuvedeno." columns={RESULT_COLUMNS} groups={groups} fold={{ unit: 'skupiny', items: VALUES }}
+    row={(entry, group) => {
+      const v = entry.value
+      const cultureOnly = v.culture && v.value === undefined
+      return (
+        <tr key={results.indexOf(entry)} className="lab-table__row">
+          <th scope="row" className="lab-table__test">
+            <span className="lab-table__name">{v.test}</span><EntryTags entry={entry} />
+            {!sharedValue(group.items, item => item.value.suppliedNote) && v.suppliedNote && <span className="sub">{v.suppliedNote}</span>}
+            {v.culture && <div className="culture"><p>{v.culture.organism}{v.culture.quantity ? ` · ${v.culture.quantity}` : ''}</p>
+              <ul className="plain-list">{v.culture.susceptibility.map(item => <li key={item.agent}>{item.agent}: {SUSCEPTIBILITY[item.result] ?? item.result}</li>)}</ul></div>}
+            {v.sediment && <span className="sub">Sediment: {v.sediment}</span>}
+          </th>
+          <td className="lab-table__num lab-table__value">{cultureOnly ? <span className="sub">viz kultivace</span> : v.value !== undefined ? <span className="num">{v.value}</span> : <Missing />}</td>
+          <td className="lab-table__unit">{v.unit ?? (cultureOnly ? null : <Missing />)}</td>
+          <td className="lab-table__range" data-label="Rozmezí"><span className="num">{v.referenceRange ?? <Missing />}</span></td>
+          <td className="lab-table__flag" data-label="Označení">{v.abnormalFlag && FLAG[v.abnormalFlag] ? FLAG[v.abnormalFlag] : <Missing />}</td>
+        </tr>
+      )
+    }} />
 }
 
 const REPORT_TYPE: Record<string, string> = {
@@ -60,6 +113,26 @@ const yesNo = (value: boolean | undefined) => value === undefined ? undefined : 
 
 function Empty({ text }: { readonly text: string }) {
   return <p className="placeholder-text">{text}</p>
+}
+
+/** Same session table as the clinical record; the patient source line is shared per session, so it sits in the header. */
+function MeasurementsTable({ entries }: { readonly entries: readonly PatientRecordEntry<PatientMeasurement>[] }) {
+  const groups = measurementSessions(entries, entry => entry.value, entry => entry.effective, rows => {
+    const source = sharedValue(rows, sourceText) ?? (rows.length === 1 ? sourceText(rows[0]!) : undefined)
+    return source ? [`Zdroj: ${source}`] : []
+  })
+  const shared = new Map(groups.map(group => [group.key, group]))
+  return <GroupedTable labelledBy="t-pr-measurements" caption={`Sezení měření v pořadí zpráv (${groups.length}). „—“ = ve zprávě neuvedeno.`} columns={MEASUREMENT_COLUMNS.slice(0, 3)}
+    groups={groups} limit={SESSION_LIMIT} fold={SESSION_FOLD}
+    row={(entry, group) => {
+      const own = shared.get(group.key)!
+      const perRow = own.meta.some(line => typeof line === 'string' && line.startsWith('Zdroj: ')) ? null : <span className="sub">Zdroj: {sourceText(entry)}</span>
+      return (
+        <tr key={entries.indexOf(entry)} className="lab-table__row">
+          <MeasurementCells v={entry.value} shared={own.shared} tags={<><EntryTags entry={entry} />{perRow}</>} source={() => null} />
+        </tr>
+      )
+    }} />
 }
 
 function MedicationEntry({ entry }: { readonly entry: PatientRecordEntry<PatientMedication> }) {
@@ -92,46 +165,23 @@ export function PatientRecordPage({ record }: { readonly record: PatientRecord }
       <div className="patient-record__main">
         <Panel id="t-pr-results" icon="file" title="Výsledky vyšetření" meta="Hodnota, jednotka a rozmezí přesně podle zprávy.">
           {record.results.length === 0 ? <PanelBody><Empty text={record.coverage?.observations === 'unavailable' ? 'Výsledky nejsou dostupné — zdroj pozorování se nepodařilo načíst.' : 'Žádné výsledky zatím nejsou k dispozici.'} /></PanelBody> : (
-            <Table labelledBy="t-pr-results" columns={['Vyšetření', 'Výsledek', 'Rozmezí podle zprávy', 'Označení ve zprávě', 'Kdy']}>
-              {record.results.map((entry, index) => {
-                const v = entry.value
-                return (
-                  <tr key={index}>
-                    <StackCell label="Vyšetření">
-                      <span className="cell-strong">{v.test}</span><EntryTags entry={entry} />
-                      {v.suppliedNote && <span className="sub">{v.suppliedNote}</span>}
-                      {v.culture && <div className="culture"><p>{v.culture.organism}{v.culture.quantity ? ` · ${v.culture.quantity}` : ''}</p>
-                        <ul className="plain-list">{v.culture.susceptibility.map(item => <li key={item.agent}>{item.agent}: {SUSCEPTIBILITY[item.result] ?? item.result}</li>)}</ul></div>}
-                      {v.sediment && <span className="sub">Sediment: {v.sediment}</span>}
-                    </StackCell>
-                    <StackCell label="Výsledek">{v.value !== undefined ? <span className="num">{v.value}{v.unit ? ` ${v.unit}` : ''}</span> : <span className="placeholder-text">hodnota neuvedena</span>}</StackCell>
-                    <StackCell label="Rozmezí">{v.referenceRange ?? <span className="placeholder-text">neuvedeno</span>}</StackCell>
-                    <StackCell label="Označení">{v.abnormalFlag && FLAG[v.abnormalFlag] ? FLAG[v.abnormalFlag] : <span className="placeholder-text">bez označení</span>}</StackCell>
-                    <StackCell label="Kdy"><span className="sub sub--ink">Odběr: {clinicalTimeText(v.sampleAt)}</span><span className="sub">Výsledek: {clinicalTimeText(v.resultAt)}</span>
-                      <span className="sub">Zdroj: {entry.sourceStatus === 'resolved' && entry.sources.length > 0
-                        ? entry.sources.map(source => `${source.label}, vydáno ${clinicalTimeText(source.issued)}`).join('; ') : 'nelze určit'}</span></StackCell>
-                  </tr>
-                )
-              })}
-            </Table>
+            <ResultsTable results={record.results} />
           )}
         </Panel>
         <Panel id="t-pr-reports" icon="file" title="Zprávy z vyšetření">
           <PanelBody>
             {record.reports.length === 0 && <Empty text={record.coverage?.diagnosticReports === 'unavailable' || record.coverage?.documents === 'unavailable' ? 'Zdroj zpráv nebo dokumentů není dostupný.' : 'Žádné zprávy zatím nejsou k dispozici.'} />}
-            <div className="fact-list">
-              {record.reports.map((entry, index) => (
-                <Entry key={index} entry={entry} title={REPORT_TYPE[entry.value.type] ?? entry.value.type} timeLabel="Datum">
-                  <Fields items={[['Co zpráva uvádí', entry.value.finding], ['Závěr zprávy', entry.value.conclusion], ['Datum zprávy', entry.value.date && clinicalTimeText(entry.value.date)]]} />
-                </Entry>
-              ))}
-            </div>
+            <EntryGroups entries={record.reports} timeLabel="Datum" render={(entry, index) => (
+              <Entry key={index} entry={entry} title={REPORT_TYPE[entry.value.type] ?? entry.value.type}>
+                <Fields items={[['Co zpráva uvádí', entry.value.finding], ['Závěr zprávy', entry.value.conclusion],
+                  ['Datum zprávy', entry.value.date && clinicalTimeText(entry.value.date) !== clinicalTimeText(entry.effective) ? clinicalTimeText(entry.value.date) : undefined]]} />
+              </Entry>
+            )} />
           </PanelBody>
         </Panel>
         <Panel id="t-pr-symptoms" icon="person" title="Obtíže, které jste uvedl(a)" meta="Tak, jak jsou zapsané ve zprávách. Přibližný začátek zůstává přibližný.">
           <PanelBody>
-            {record.symptoms.length === 0 ? <Empty text="Žádné obtíže nejsou zaznamenány." /> : <div className="fact-list">
-              {record.symptoms.map((entry, index) => {
+            {record.symptoms.length === 0 ? <Empty text="Žádné obtíže nejsou zaznamenány." /> : <EntryGroups entries={record.symptoms} render={(entry, index) => {
                 const v = entry.value
                 return (
                   <Entry key={index} entry={entry} title={v.type}>
@@ -143,21 +193,12 @@ export function PatientRecordPage({ record }: { readonly record: PatientRecord }
                     ]} />
                   </Entry>
                 )
-              })}
-            </div>}
+              }} />}
           </PanelBody>
         </Panel>
         <Panel id="t-pr-measurements" icon="calendar" title="Měření" meta="Hodnota a jednotka podle zprávy, vždy s datem měření, pokud je uvedeno.">
-          <PanelBody>
-            {record.measurements.length === 0 ? <Empty text={record.coverage?.observations === 'unavailable' ? 'Měření nejsou dostupná — zdroj pozorování se nepodařilo načíst.' : 'Žádná měření nejsou zaznamenána.'} /> : <div className="fact-list">
-              {record.measurements.map((entry, index) => (
-                <Entry key={index} entry={entry} timeLabel="Změřeno"
-                  title={<>{MEASUREMENT_TYPE[entry.value.type] ?? entry.value.type}: <span className="num">{entry.value.value}{entry.value.unit ? ` ${entry.value.unit}` : ''}</span></>}>
-                  <Fields items={[['Popis vyšetření', entry.value.examination]]} />
-                </Entry>
-              ))}
-            </div>}
-          </PanelBody>
+          {record.measurements.length === 0 ? <PanelBody><Empty text={record.coverage?.observations === 'unavailable' ? 'Měření nejsou dostupná — zdroj pozorování se nepodařilo načíst.' : 'Žádná měření nejsou zaznamenána.'} /></PanelBody>
+            : <MeasurementsTable entries={record.measurements} />}
         </Panel>
       </div>
       <div className="patient-record__side">
@@ -165,28 +206,23 @@ export function PatientRecordPage({ record }: { readonly record: PatientRecord }
           <PanelBody>
             {differs && <Notice tone="warning" icon="alert" title="Některé záznamy o lécích se liší" role="note">Rozdíl je zde jen ukázán. Zatím nebyl vyjasněn.</Notice>}
             {record.medications.length === 0 && <Empty text="Žádné léky nejsou zaznamenány." />}
-            {taking.length > 0 && <><h3 className="record-group__title">Co jste uvedl(a), že užíváte</h3><div className="fact-list">{taking.map((entry, index) => <MedicationEntry key={index} entry={entry} />)}</div></>}
-            {advice.length > 0 && <><h3 className="record-group__title">Doporučení a pokyny ve zprávách</h3><div className="fact-list">{advice.map((entry, index) => <MedicationEntry key={index} entry={entry} />)}</div></>}
+            {taking.length > 0 && <><h3 className="record-group__title">Co jste uvedl(a), že užíváte</h3><EntryGroups entries={taking} render={(entry, index) => <MedicationEntry key={index} entry={entry} />} /></>}
+            {advice.length > 0 && <><h3 className="record-group__title">Doporučení a pokyny ve zprávách</h3><EntryGroups entries={advice} render={(entry, index) => <MedicationEntry key={index} entry={entry} />} /></>}
           </PanelBody>
         </Panel>
         <Panel id="t-pr-allergy" icon="alert" title="Alergie">
           <PanelBody>
-            {record.allergies.length === 0 ? <Empty text="Údaj o alergiích není zaznamenán." /> : <div className="fact-list">
-              {record.allergies.map((entry, index) => <Entry key={index} entry={entry} title={entry.value.description} />)}
-            </div>}
+            {record.allergies.length === 0 ? <Empty text="Údaj o alergiích není zaznamenán." /> : <EntryGroups entries={record.allergies} render={(entry, index) => <Entry key={index} entry={entry} title={entry.value.description} />} />}
           </PanelBody>
         </Panel>
         <Panel id="t-pr-history" icon="help" title="Dřívější onemocnění a operace">
           <PanelBody>
-            {record.history.length === 0 ? <Empty text={record.coverage?.conditions === 'unavailable' ? 'Zdroj onemocnění není dostupný.' : 'Nic není zaznamenáno.'} /> : <div className="fact-list">
-              {record.history.map((entry, index) => <Entry key={index} entry={entry} title={<><span className="fact__kind">{HISTORY_CATEGORY[entry.value.category]}</span>{entry.value.description}</>} />)}
-            </div>}
+            {record.history.length === 0 ? <Empty text={record.coverage?.conditions === 'unavailable' ? 'Zdroj onemocnění není dostupný.' : 'Nic není zaznamenáno.'} /> : <EntryGroups entries={record.history} render={(entry, index) => <Entry key={index} entry={entry} title={<><span className="fact__kind">{HISTORY_CATEGORY[entry.value.category]}</span>{entry.value.description}</>} />} />}
           </PanelBody>
         </Panel>
         <Panel id="t-pr-support" icon="team" title="Domácnost a podpora">
           <PanelBody>
-            {record.personSupport.length === 0 ? <Empty text="Nic není zaznamenáno." /> : <div className="fact-list">
-              {record.personSupport.map((entry, index) => {
+            {record.personSupport.length === 0 ? <Empty text="Nic není zaznamenáno." /> : <EntryGroups entries={record.personSupport} render={(entry, index) => {
                 const v = entry.value
                 return (
                   <Entry key={index} entry={entry} title={v.description ?? 'Domácnost a život'}>
@@ -196,20 +232,17 @@ export function PatientRecordPage({ record }: { readonly record: PatientRecord }
                       ['Doporučená psychoterapie', v.psychotherapyRecommendation], ['Doporučená psychiatrická konzultace', v.psychiatryRecommendation], ['Sledování bolesti', v.painFollowup]]} />
                   </Entry>
                 )
-              })}
-            </div>}
+              }} />}
           </PanelBody>
         </Panel>
         <Panel id="t-pr-wish" icon="team" title="Vaše přání ke sdílení informací" meta="Zaznamenané přání není oprávnění k přístupu v této aplikaci.">
           <PanelBody>
-            {record.sharingWishes.length === 0 ? <Empty text="Žádné přání není zaznamenáno." /> : <div className="fact-list">
-              {record.sharingWishes.map((entry, index) => (
+            {record.sharingWishes.length === 0 ? <Empty text="Žádné přání není zaznamenáno." /> : <EntryGroups entries={record.sharingWishes} render={(entry, index) => (
                 <Entry key={index} entry={entry} title={entry.value.text}>
                   <Fields items={[['Stav', entry.value.state === 'recorded' ? 'zaznamenáno' : entry.value.state === 'declined' ? 'odmítnuto' : 'není známo'],
                     ['Rozsah', entry.value.scope], ['Zaznamenáno', entry.value.recordedAt && clinicalTimeText(entry.value.recordedAt)]]} />
                 </Entry>
-              ))}
-            </div>}
+              )} />}
           </PanelBody>
         </Panel>
       </div>

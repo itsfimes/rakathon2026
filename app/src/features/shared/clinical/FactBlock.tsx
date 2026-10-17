@@ -51,18 +51,23 @@ export function SourceList({ fact, sources, effectiveLabel }: { readonly fact: C
 }
 
 /** On-demand inspection of the exact supplied source versions. Inside tables use `dialog` so the row never grows. */
-export function SourceInspect({ fact, sources, effectiveLabel = 'Týká se doby', presentation = 'inline' }: {
+export function SourceInspect({ fact, sources, effectiveLabel = 'Týká se doby', presentation = 'inline', compactFor }: {
   readonly fact: ClinicalFact<unknown>
   readonly sources: readonly ClinicalSource[]
   readonly effectiveLabel?: string
   readonly presentation?: 'inline' | 'dialog'
+  /** Dense tables: visible trigger shortens to "Zdroj"; the accessible name keeps the full wording plus this row name. */
+  readonly compactFor?: string | undefined
 }) {
   if (fact.sources.length === 0) return <p className="fact__meta">Zdroj není uveden.</p>
   const only = fact.sources.length === 1 ? findSource(sources, fact.sources[0]!) : []
   const kind = only.length === 1 ? only[0]!.summary?.kind : undefined
   const summary = kind ? `Zdrojový záznam: ${SOURCE_KIND_LABEL[kind].toLowerCase()}` : fact.sources.length === 1 ? 'Zdrojový záznam' : `Zdrojové záznamy (${fact.sources.length})`
   const body = <SourceList fact={fact} sources={sources} effectiveLabel={effectiveLabel} />
-  if (presentation === 'dialog') return <SourceDialog summary={summary} title={only.length === 1 ? only[0]!.label : summary}>{body}</SourceDialog>
+  const title = only.length === 1 ? only[0]!.label : summary
+  if (presentation === 'dialog') return compactFor === undefined
+    ? <SourceDialog summary={summary} title={title}>{body}</SourceDialog>
+    : <SourceDialog summary="Zdroj" label={`Zdroj – ${compactFor} (${summary})`} title={title}>{body}</SourceDialog>
   return <ScopedDisclosure icon="file" summary={summary}>{body}</ScopedDisclosure>
 }
 
@@ -75,20 +80,23 @@ interface FactBlockProps {
   readonly timeLabel?: string
   /** False when the caller already shows the time in its own leading line (avoids a duplicate date). */
   readonly showTime?: boolean
+  /** Inside FactGroups: time sits in the group header, source becomes a compact "Zdroj" button in the head. */
+  readonly grouped?: boolean
   readonly children?: ReactNode
 }
 
 /** One supplied fact: title + visible status words, readable value, one quiet time line, sources on demand. */
-export function FactBlock({ fact, sources, title, kicker, time, timeLabel = 'Týká se doby', showTime = true, children }: FactBlockProps) {
+export function FactBlock({ fact, sources, title, kicker, time, timeLabel = 'Týká se doby', showTime = true, grouped = false, children }: FactBlockProps) {
   return (
     <article className="fact">
       <div className="fact__head">
         <h4 className="fact__title">{kicker && <span className="fact__kind">{kicker}</span>}{title}</h4>
         <FactTags fact={fact} />
+        {grouped && <SourceInspect fact={fact} sources={sources} presentation="dialog" compactFor={typeof title === 'string' ? title : kicker ?? 'záznam'} />}
       </div>
       {children && <div className="fact__body">{children}</div>}
-      {showTime && <p className="fact__meta">{timeLabel}: {clinicalTimeText(time ?? fact.effective)}</p>}
-      <SourceInspect fact={fact} sources={sources} />
+      {showTime && !grouped && <p className="fact__meta">{timeLabel}: {clinicalTimeText(time ?? fact.effective)}</p>}
+      {!grouped && <SourceInspect fact={fact} sources={sources} />}
     </article>
   )
 }

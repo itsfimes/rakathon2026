@@ -1,11 +1,12 @@
 import type { ClinicalCoverage, ClinicalRecord, ClinicalDomains, ClinicalFact, ClinicalSource, LabPayload, MedicationPayload } from '../../../data/clinical'
 import { Notice } from '../../../components/ui/Notice'
 import { Panel, PanelBody } from '../../../components/ui/Panel'
-import { StackCell, Table } from '../../../components/ui/Table'
-import { Tag } from '../../../components/ui/Tag'
-import { Fields, FactBlock, FactTags, SourceInspect } from './FactBlock'
-import { clinicalTimeText, HISTORY_CATEGORY, LAB_FLAG, LAB_PANEL, MEASUREMENT_TYPE, MEDICATION_STATEMENT, ONCOLOGY_KIND, SUSCEPTIBILITY } from './clinicalText'
+import { Fields, FactBlock } from './FactBlock'
+import { clinicalTimeText, HISTORY_CATEGORY, MEDICATION_STATEMENT, ONCOLOGY_KIND } from './clinicalText'
 import { CoverageNotice } from './CoverageNotice'
+import { LabTable } from './LabTable'
+import { MeasurementTable } from './MeasurementTable'
+import { FactGroups } from './FactGroups'
 import { ReportItems, ReportLine } from './ReportMeta'
 
 interface BodyProps {
@@ -45,11 +46,10 @@ function OncologyPanel({ facts, sources, id }: PanelProps<ClinicalDomains['oncol
     <Panel id={id} icon="file" title="Onkologie a histologie" meta="Původní podezření a pozdější potvrzení jsou samostatné záznamy. Staging jen podle dodaného závěru.">
       <PanelBody>
         {none(facts.length, 'Žádný onkologický ani histologický údaj není v záznamu.')}
-        <div className="fact-list">
-          {facts.map(fact => {
+        <FactGroups facts={facts} render={fact => {
             const v = fact.value
             return (
-              <FactBlock key={fact.id} fact={fact} sources={sources} kicker={ONCOLOGY_KIND[v.kind]} title={v.description}>
+              <FactBlock key={fact.id} fact={fact} sources={sources} kicker={ONCOLOGY_KIND[v.kind]} title={v.description} grouped>
                 <Fields items={[
                   ['Lokalizace', v.site], ['Typ', v.type], ['Stupeň (grade)', v.grade], ['Perineurální invaze', v.perineuralInvasion],
                   ['Imunohistochemie', v.ihc?.length ? <ul className="plain-list">{v.ihc.map(item => <li key={item.marker}>{item.marker}: {item.result}</li>)}</ul> : undefined],
@@ -60,8 +60,7 @@ function OncologyPanel({ facts, sources, id }: PanelProps<ClinicalDomains['oncol
                 ]} />
               </FactBlock>
             )
-          })}
-        </div>
+          }} />
       </PanelBody>
     </Panel>
   )
@@ -72,12 +71,11 @@ function ImagingPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDo
     <Panel id={id} icon="eye" title="Zprávy z vyšetření a výkony" meta="Textové zprávy a dodaná metadata dokumentů. Obrazová data (DICOM) nejsou součástí.">
       <PanelBody>
         {none(facts.length, unavailable ? 'Zdroj zpráv nebo dokumentů není dostupný.' : 'Žádná zpráva z vyšetření ani výkonu není v záznamu.')}
-        <div className="fact-list">
-          {facts.map(fact => {
+        <FactGroups facts={facts} budget={2} timeLine={fact => `Datum vyšetření: ${clinicalTimeText(fact.value.date ?? fact.effective)}`} render={fact => {
             const v = fact.value
             return (
-              <FactBlock key={fact.id} fact={fact} sources={sources} title={v.type} showTime={false}>
-                <ReportLine date={v.date ?? fact.effective} meta={v.meta} />
+              <FactBlock key={fact.id} fact={fact} sources={sources} title={v.type} grouped>
+                <ReportLine date={v.date ?? fact.effective} meta={v.meta} withDate={false} />
                 <Fields items={[['Oblast', v.site], ['Indikace', v.indication]]} />
                 {v.findings && <div className="report-text"><h5>Nález</h5><p>{v.findings}</p></div>}
                 {v.conclusion && <div className="report-text"><h5>Závěr</h5><p>{v.conclusion}</p></div>}
@@ -91,48 +89,17 @@ function ImagingPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDo
                 <ReportItems meta={v.meta} />
               </FactBlock>
             )
-          })}
-        </div>
+          }} />
       </PanelBody>
     </Panel>
   )
 }
 
-function labValue(v: LabPayload) {
-  if (v.value === undefined) return <span className="placeholder-text">hodnota neuvedena</span>
-  return <span className="num">{v.value}{v.unit ? ` ${v.unit}` : ''}</span>
-}
-
 function LabsPanel({ facts, sources, id, unavailable }: PanelProps<LabPayload>) {
   return (
     <Panel id={id} icon="file" title="Laboratoř" meta="Hodnoty, jednotky, rozmezí a označení přesně podle zdroje. Aplikace je neinterpretuje.">
-      {facts.length === 0 ? <PanelBody>{none(0, unavailable ? 'Laboratorní výsledky nejsou dostupné — zdroj pozorování se nepodařilo načíst.' : 'Žádný laboratorní výsledek není v záznamu.')}</PanelBody> : (
-        <Table labelledBy={id} columns={['Vyšetření', 'Hodnota', 'Rozmezí ze zdroje', 'Označení', 'Odběr · výsledek', 'Stav a zdroj']}>
-          {facts.map(fact => {
-            const v = fact.value
-            const flag = v.abnormalFlag ? LAB_FLAG[v.abnormalFlag] : null
-            return (
-              <tr key={fact.id}>
-                <StackCell label="Vyšetření">
-                  <span className="cell-strong">{v.test}</span>
-                  {v.suppliedNote && <span className="sub">{v.suppliedNote}</span>}
-                  {v.panel && <span className="sub">{LAB_PANEL[v.panel]}</span>}
-                  {v.culture && <div className="culture">
-                    <p>{v.culture.organism}{v.culture.quantity ? ` · ${v.culture.quantity}` : ''}</p>
-                    <ul className="plain-list">{v.culture.susceptibility.map(item => <li key={item.agent}>{item.agent}: {SUSCEPTIBILITY[item.result]}{item.mic ? ` (MIC ${item.mic}${item.unit ? ` ${item.unit}` : ''})` : ''}</li>)}</ul>
-                  </div>}
-                  {v.sediment && <span className="sub">Sediment: {v.sediment}</span>}
-                </StackCell>
-                <StackCell label="Hodnota">{v.culture && v.value === undefined ? <span className="sub">viz kultivace</span> : labValue(v)}</StackCell>
-                <StackCell label="Rozmezí">{v.referenceRange ?? <span className="placeholder-text">neuvedeno</span>}</StackCell>
-                <StackCell label="Označení">{flag ? <Tag label={flag} /> : <span className="placeholder-text">bez označení</span>}</StackCell>
-                <StackCell label="Odběr · výsledek"><span className="sub sub--ink">Odběr: {clinicalTimeText(v.sampleAt)}</span><span className="sub">Výsledek: {clinicalTimeText(v.resultAt)}</span></StackCell>
-                <StackCell label="Stav a zdroj"><FactTags fact={fact} /><SourceInspect fact={fact} sources={sources} effectiveLabel="Platnost výsledku" presentation="dialog" /></StackCell>
-              </tr>
-            )
-          })}
-        </Table>
-      )}
+      {facts.length === 0 ? <PanelBody>{none(0, unavailable ? 'Laboratorní výsledky nejsou dostupné — zdroj pozorování se nepodařilo načíst.' : 'Žádný laboratorní výsledek není v záznamu.')}</PanelBody>
+        : <LabTable facts={facts} sources={sources} labelledBy={id} />}
     </Panel>
   )
 }
@@ -154,8 +121,8 @@ function MedicationsPanel({ facts, sources, id }: PanelProps<MedicationPayload>)
   const rest = facts.filter(fact => !conflicted.includes(fact))
   const reported = rest.filter(fact => fact.value.statement === 'reported-taking' || fact.value.statement === 'completed-course')
   const advice = rest.filter(fact => !reported.includes(fact))
-  const block = (fact: ClinicalFact<MedicationPayload>) => (
-    <FactBlock key={fact.id} fact={fact} sources={sources} kicker={MEDICATION_STATEMENT[fact.value.statement]} title={fact.value.name}>
+  const block = (fact: ClinicalFact<MedicationPayload>, grouped = false) => (
+    <FactBlock key={fact.id} fact={fact} sources={sources} kicker={MEDICATION_STATEMENT[fact.value.statement]} title={fact.value.name} grouped={grouped}>
       <MedicationFields v={fact.value} />
     </FactBlock>
   )
@@ -168,16 +135,16 @@ function MedicationsPanel({ facts, sources, id }: PanelProps<MedicationPayload>)
             <Notice tone="danger" icon="alert" title={<span id={`${id}-conflict`}>Nevyřešený rozpor v lécích</span>} role="note">
               Tyto záznamy si odporují. Aplikace žádný z nich nevybírá; rozhodne člověk podle zdrojů.
             </Notice>
-            <div className="conflict__pair">{conflicted.map(block)}</div>
+            <div className="conflict__pair">{conflicted.map(fact => block(fact))}</div>
           </section>
         )}
         {reported.length > 0 && <section className="record-group" aria-labelledby={`${id}-rep`}>
           <h3 className="record-group__title" id={`${id}-rep`}>Udává, že užívá</h3>
-          <div className="fact-list">{reported.map(block)}</div>
+          <FactGroups facts={reported} render={fact => block(fact, true)} />
         </section>}
         {advice.length > 0 && <section className="record-group" aria-labelledby={`${id}-adv`}>
           <h3 className="record-group__title" id={`${id}-adv`}>Doporučení, pokyny k výkonu a interakce</h3>
-          <div className="fact-list">{advice.map(block)}</div>
+          <FactGroups facts={advice} render={fact => block(fact, true)} />
         </section>}
       </PanelBody>
     </Panel>
@@ -187,9 +154,10 @@ function MedicationsPanel({ facts, sources, id }: PanelProps<MedicationPayload>)
 function HistoryPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDomains['history'][number]['value']>) {
   const allergies = facts.filter(fact => fact.value.category === 'allergy')
   const other = facts.filter(fact => fact.value.category !== 'allergy')
+  const timeLine = (fact: ClinicalFact<ClinicalDomains['history'][number]['value']>) =>
+    `${fact.value.onset ? 'Začátek' : 'Týká se doby'}: ${clinicalTimeText(fact.value.onset ?? fact.effective)}`
   const block = (fact: ClinicalFact<ClinicalDomains['history'][number]['value']>) => (
-    <FactBlock key={fact.id} fact={fact} sources={sources} kicker={HISTORY_CATEGORY[fact.value.category]} title={fact.value.description}
-      time={fact.value.onset ?? fact.effective} timeLabel={fact.value.onset ? 'Začátek' : 'Týká se doby'}>
+    <FactBlock key={fact.id} fact={fact} sources={sources} kicker={HISTORY_CATEGORY[fact.value.category]} title={fact.value.description} grouped>
       <Fields items={[['Kód', fact.value.code]]} />
     </FactBlock>
   )
@@ -198,11 +166,11 @@ function HistoryPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDo
       <PanelBody>
         <section className="record-group" aria-labelledby={`${id}-all`}>
           <h3 className="record-group__title" id={`${id}-all`}>Alergie</h3>
-          {allergies.length === 0 ? <p className="placeholder-text">Údaj o alergiích není v záznamu (není to totéž jako popření).</p> : <div className="fact-list">{allergies.map(block)}</div>}
+          {allergies.length === 0 ? <p className="placeholder-text">Údaj o alergiích není v záznamu (není to totéž jako popření).</p> : <FactGroups facts={allergies} timeLine={timeLine} render={block} />}
         </section>
         <section className="record-group" aria-labelledby={`${id}-oth`}>
           <h3 className="record-group__title" id={`${id}-oth`}>Onemocnění, operace a další anamnéza</h3>
-          {other.length === 0 ? <p className="placeholder-text">{unavailable ? 'Zdroj onemocnění není dostupný.' : 'Další anamnéza není v záznamu.'}</p> : <div className="fact-list">{other.map(block)}</div>}
+          {other.length === 0 ? <p className="placeholder-text">{unavailable ? 'Zdroj onemocnění není dostupný.' : 'Další anamnéza není v záznamu.'}</p> : <FactGroups facts={other} timeLine={timeLine} render={block} />}
         </section>
       </PanelBody>
     </Panel>
@@ -214,11 +182,10 @@ function SymptomsPanel({ facts, sources, id }: PanelProps<ClinicalDomains['sympt
     <Panel id={id} icon="person" title="Příznaky" meta="Přibližný začátek zůstává přibližný.">
       <PanelBody>
         {none(facts.length, 'Žádné příznaky nejsou v záznamu.')}
-        <div className="fact-list">
-          {facts.map(fact => {
+        <FactGroups facts={facts} timeLine={fact => `Začátek: ${clinicalTimeText(fact.value.onset ?? fact.effective)}`} render={fact => {
             const v = fact.value
             return (
-              <FactBlock key={fact.id} fact={fact} sources={sources} title={v.type} time={v.onset ?? fact.effective} timeLabel="Začátek">
+              <FactBlock key={fact.id} fact={fact} sources={sources} title={v.type} grouped>
                 <Fields items={[
                   ['Místo', v.site], ['Charakter', v.character], ['Průběh', v.course], ['Horečka', yesNo(v.fever)], ['Žloutenka', yesNo(v.jaundice)],
                   ['Tmavá moč', yesNo(v.darkUrine)], ['Chuť k jídlu', v.appetite], ['Nevolnost', yesNo(v.nausea)], ['Hubnutí', v.weightLoss],
@@ -226,8 +193,7 @@ function SymptomsPanel({ facts, sources, id }: PanelProps<ClinicalDomains['sympt
                 ]} />
               </FactBlock>
             )
-          })}
-        </div>
+          }} />
       </PanelBody>
     </Panel>
   )
@@ -236,16 +202,8 @@ function SymptomsPanel({ facts, sources, id }: PanelProps<ClinicalDomains['sympt
 function MeasurementsPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDomains['measurements'][number]['value']>) {
   return (
     <Panel id={id} icon="calendar" title="Měření" meta="Každá hodnota nese své datum. Hodnota bez data není označena jako aktuální.">
-      <PanelBody>
-        {none(facts.length, unavailable ? 'Měření nejsou dostupná — zdroj pozorování se nepodařilo načíst.' : 'Žádné měření není v záznamu.')}
-        <div className="fact-list">
-          {facts.map(fact => (
-            <FactBlock key={fact.id} fact={fact} sources={sources} title={<>{MEASUREMENT_TYPE[fact.value.type]}: <span className="num">{fact.value.value}{fact.value.unit ? ` ${fact.value.unit}` : ''}</span></>} timeLabel="Změřeno">
-              <Fields items={[['Popis vyšetření', fact.value.examination]]} />
-            </FactBlock>
-          ))}
-        </div>
-      </PanelBody>
+      {facts.length === 0 ? <PanelBody>{none(0, unavailable ? 'Měření nejsou dostupná — zdroj pozorování se nepodařilo načíst.' : 'Žádné měření není v záznamu.')}</PanelBody>
+        : <MeasurementTable facts={facts} sources={sources} labelledBy={id} />}
     </Panel>
   )
 }
