@@ -20,6 +20,29 @@ CLINICAL_TYPES = frozenset(
 )
 ENVELOPE_TYPES = frozenset({"Task", "Bundle", "OperationOutcome"})
 ALLOWED_TYPES = CLINICAL_TYPES | ENVELOPE_TYPES
+PATIENT_CONTEXT_TYPES = (
+    "Condition",
+    "Observation",
+    "DiagnosticReport",
+    "DocumentReference",
+    "Procedure",
+    "MedicationRequest",
+    "MedicationStatement",
+    "AllergyIntolerance",
+    "Encounter",
+    "ServiceRequest",
+    "CarePlan",
+    "Immunization",
+    "FamilyMemberHistory",
+    "ClinicalImpression",
+    "CareTeam",
+    "Goal",
+    "Specimen",
+    "ImagingStudy",
+    "Composition",
+    "QuestionnaireResponse",
+)
+READ_ALLOWED_TYPES = ALLOWED_TYPES | frozenset(PATIENT_CONTEXT_TYPES)
 MAX_TRANSACTION_ENTRIES = 100
 
 _ID_RE = re.compile(r"^[A-Za-z0-9\-.]{1,64}$")

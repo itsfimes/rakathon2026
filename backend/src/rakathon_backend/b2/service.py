@@ -25,11 +25,11 @@ from rakathon_backend.b2.write_guards import (
 from rakathon_backend.b6.permissions import canonical_action
 from rakathon_backend.common.contracts import DataKind, Envelope
 from rakathon_backend.common.errors import AuthError, ContractError, TransportError
-from rakathon_backend.common.fhir import ALLOWED_TYPES, check_bundle
+from rakathon_backend.common.fhir import READ_ALLOWED_TYPES, check_bundle
 
 SERVICE_NAME = "b2"
 ALLOWED_CALLERS = frozenset({"b4", "b3"})
-FHIR_TYPES = ALLOWED_TYPES
+FHIR_TYPES = READ_ALLOWED_TYPES
 
 _ = TASK_STATUSES
 

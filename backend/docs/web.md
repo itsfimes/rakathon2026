@@ -76,10 +76,12 @@ an untripped local gateway. No provider request is made to check health.
 
 POST requires an explicit allowed Origin and exact JSON content type, one
 positive Content-Length <=16384 bytes, no transfer encoding/Expect, duplicate
-keys/constants or unknown fields. Body: `{role,text}` for message-only chat,
-or `{role,text,context,binding}` after explicit selected-case context opt-in.
-Roles: `koordinator|pacient|lekar|mdt`. Limits: input1000/output6000 characters,
-32 fields, 320 characters per value, aggregate4000. No history/tasks/persistence.
+keys/constants or unknown fields. Body: `{role,text}` for general questions (no
+patient reads), or `{role,text,caseId}` for the currently selected patient.
+`caseId` matches `^[A-Za-z0-9.-]{1,64}$`. Roles:
+`koordinator|pacient|lekar|mdt` affect presentation only, not data access.
+Limits: input1000/output12000 characters. No history/tasks/persistence.
+Client-supplied `context`, `binding`, `userId` and other unknown keys are rejected.
 Only one assistant submission at a time (429 when busy); facade deadline80s,
 HTTP wait85s, browser deadline90s. Browser abort suppresses stale replies but
 does not prove IPC/provider immediate cancellation; existing B5 kill/deadline
@@ -105,24 +107,56 @@ through the frontend. Process environment still takes precedence, including
 explicit operator disablement. Authentication remains the explicitly configured
 scheme, never a fallback.
 
-Enabled case GET adds `assistantPreview` keyed by role, each with exact
-`context:{role,fields:[{key,source,value}]}` and separate
-`binding:{caseId,token}`. Context is coverage only for coordinator; other roles
-may also include at most three supplied report titles/dates/statuses. No names,
-identifiers, diagnoses, report bodies or whole clinical records are included.
-Absent legacy next-step data does not disable general chat or safe coverage.
-Known private labels/unsafe titles are omitted, not rewritten into invented
-facts. Report metadata is not report contents or a clinical conclusion.
+### Full authorized selected-patient record egress
 
-The ephemeral server-only HMAC binds case/role/source snapshot/context hash and
-five-minute TTL. Send rereads the exact selected case through viewer B4/B6/B2,
-regenerates preview, and rejects changed/expired/tampered context with409.
-Restart invalidates bindings. Case ID/token never enter the provider prompt.
-Assistant calls use dedicated `web-assistant` principal through B4/B6/B5,
-authorized ONLY for `ai.complete`, not reads/admin/general RPC. Plain-text
-completion has no ingestion FHIR response_format. Successful response:
-`{provenance:"server",text,sources}`; sources describe supplied context labels,
-never fabricated citations. The UI renders plain text, not HTML/tool actions.
+Sending `caseId` authorizes server assembly and **egress of the full available
+record to the configured Azure/direct AI provider**, including identifiers,
+names, narratives, notes, conclusions and upload text. This is not anonymized or
+limited to metadata. The server first performs the same Patient read used by
+case GET, through B4/B6/B2 under the authenticated **human's identity**. Failure
+stops before compartment collection, upload access or AI dispatch. There is no
+new patient-ownership mapping. The `web-assistant` service principal still has
+ONLY `ai.complete` permission and never performs patient reads.
+
+Full unprojected Patient plus patient-scoped searches collect Condition,
+Observation, DiagnosticReport, DocumentReference, Procedure, MedicationRequest,
+MedicationStatement, AllergyIntolerance, Encounter, ServiceRequest, CarePlan,
+Immunization, FamilyMemberHistory, ClinicalImpression, CareTeam, Goal, Specimen,
+ImagingStudy, Composition and QuestionnaireResponse. The adapter does not expose
+`$everything`; per-type searches use its existing same-origin/base-boundary,
+cycle-protected pagination (50/page, at most10 pages, 500 resources/type).
+Unsupported400/404 types and failed collections appear in the timestamped
+manifest; incomplete pages are never represented as complete. Read-only type
+allowances do not expand FHIR writes. Each type reply stays below the existing
+1MiB B2 reply limit. Collection size-limit failures produce413, not truncation.
+
+Inline base64 UTF-8 `text/*` and `application/json` attachments in
+DocumentReference and DiagnosticReport are decoded within bounds. Non-text
+attachments are marked `binary, not readable`; external attachment URLs are
+never fetched. The complete original FHIR resources are retained as well.
+All owners' uploads for the authorized case are included, never other cases:
+validated transcription is labeled `transcription (unverified)`, approved
+review bundles `approved`, and available drafts `pending draft`. Collection is
+read-only and does not initialize or transition review state.
+
+The prompt contains safety instructions, manifest, canonical JSON resources,
+document text, uploads and the question. Patient data is untrusted, not
+instructions; answers must cite included resource types/ids or upload ids and
+state missing information. The assistant is informational, not a prescriber.
+The final UTF-8 prompt limit is `ASSISTANT_MAX_CONTEXT_BYTES` (default900000,
+configurable downward, hard maximum900000). Over-budget requests return413
+`context_too_large` without AI dispatch or silent truncation. Encoded JSON frame
+sizes are checked too. IPC and direct-provider request defaults/hard maxima are
+4MiB to accommodate escaping. No prompt/record is persisted by this endpoint.
+
+Case GET no longer adds `assistantPreview`; bindings and snapshot TTL are gone.
+Successful response: `{provenance:"server",text,sources,coverage}`. `sources` is
+at most50 included `ResourceType/id` or `upload/id` strings (an inclusion list,
+not proof every item was cited by the model). `coverage` has `status`
+(`general|complete|partial`), resource/upload counts and `failedTypes`; selected
+records also report `unreadableAttachments` and
+`uploadsWithUnavailableArtifacts`. Plain-text completion has no ingestion FHIR
+response_format. The UI renders plain text, not HTML/tool actions.
 
 ## GET /api/v1/session (HTTP 200)
 

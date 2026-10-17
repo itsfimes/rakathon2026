@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import stat
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,12 @@ from rakathon_backend.web.router import AuthHTTPRouter
 
 
 def maybe_build_uploads(
-    args: argparse.Namespace, runtime_dir: Path, web_token: str, router: AuthHTTPRouter
+    args: argparse.Namespace,
+    runtime_dir: Path,
+    web_token: str,
+    router: AuthHTTPRouter,
+    *,
+    set_assistant_uploads: Callable[[UploadStore], None] | None = None,
 ) -> Any:
     enabled = bool(getattr(args, "converter_enable", False))
     store_raw = str(getattr(args, "converter_store", "") or "")
@@ -66,6 +72,8 @@ def maybe_build_uploads(
             code="converter_key_required", message="converter store key is not usable"
         ) from exc
     store = UploadStore(store_path, keys)
+    if set_assistant_uploads is not None:
+        set_assistant_uploads(store)
     if secret_raw:
         sec = Path(secret_raw)
         if sec.is_symlink():

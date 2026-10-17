@@ -8,6 +8,7 @@ from typing import Any
 REASONS = frozenset(
     {
         "upstream_error",
+        "unsupported_type",
         "auth_failed",
         "invalid_response",
         "unsafe_paging_link",

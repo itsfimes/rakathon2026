@@ -104,7 +104,12 @@ def _page(
             _remaining(state, deadline)
             if response.status_code != 200:
                 raise _error(
-                    state, "auth_failed" if response.status_code in (401, 403) else "upstream_error"
+                    state,
+                    "auth_failed"
+                    if response.status_code in (401, 403)
+                    else "unsupported_type"
+                    if response.status_code in (400, 404)
+                    else "upstream_error",
                 )
             if response.headers.get("Content-Encoding", "identity").lower() != "identity":
                 raise _error(state, "invalid_response")

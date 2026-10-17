@@ -15,6 +15,7 @@ export const ICON_PATHS = {
   building: <path d="M4 21V5h10v16M14 9h6v12M8 9h2M8 13h2M8 17h2M2 21h20" />,
   help: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 17h.01" /></>,
   robot: <><rect x="4" y="8" width="16" height="12" rx="2.5" /><path d="M12 8V4.5M2 13v3M22 13v3M9 13.5h.01M15 13.5h.01M9.5 17h5" /><circle cx="12" cy="3.5" r="1" /></>,
+  upload: <path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" />,
   info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>,
   lock: <><rect x="5" y="11" width="14" height="10" rx="1.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
   eye: <><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,

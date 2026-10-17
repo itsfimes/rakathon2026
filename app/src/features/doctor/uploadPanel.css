@@ -1,5 +1,7 @@
 @layer components {
+  /* Dropzone: the whole area is the label of a visually hidden native input. Nothing visible comes from the browser. */
   .upload-drop {
+    position: relative;
     display: grid;
     gap: var(--s-2);
     justify-items: center;
@@ -8,31 +10,53 @@
     border: var(--border-strong, 2px) dashed var(--c-line-strong);
     border-radius: var(--radius);
     background: var(--c-surface-sunken);
+    cursor: pointer;
     transition: background-color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out);
   }
-  .upload-drop .icon {
-    width: var(--icon-lg);
-    height: var(--icon-lg);
+  .upload-drop > span { max-width: var(--measure); }
+  .upload-drop:hover { border-color: var(--c-accent); }
+  .upload-drop__mark {
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: var(--c-accent-soft);
     color: var(--c-accent);
+    transition: transform var(--t-fast) var(--ease-out);
   }
-  .upload-drop p {
-    margin: 0;
-    max-width: var(--measure);
+  .upload-drop__mark .icon { width: 1.5rem; height: 1.5rem; }
+  .upload-drop__action { font-size: var(--fs-md); color: var(--c-ink); }
+  .upload-drop__btn { margin-block: var(--s-1); pointer-events: none; }
+  .upload-drop__rules { font-size: var(--fs-sm); color: var(--c-ink-muted); }
+  .upload-drop__hint { display: inline-flex; align-items: center; gap: var(--s-1); font-size: var(--fs-xs); color: var(--c-ink-muted); }
+  /* Native input: out of sight, still focusable and announced with its own name and descriptions. */
+  .upload-drop__input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .upload-drop:has(.upload-drop__input:focus-visible) { border-color: var(--c-accent); }
+  .upload-drop:has(.upload-drop__input:focus-visible) .upload-drop__btn {
+    outline: var(--focus-width) solid var(--c-focus);
+    outline-offset: var(--focus-offset);
   }
   .upload-drop--over {
+    border-style: solid;
     border-color: var(--c-accent);
     background: var(--c-accent-soft);
   }
-  .upload-drop__input {
-    min-height: var(--target-min);
-    max-width: 100%;
-    font: inherit;
-    font-size: var(--fs-sm);
-    color: var(--c-ink);
-  }
-  .upload-drop__input:focus-visible {
-    outline: var(--focus-width) solid var(--c-focus);
-    outline-offset: var(--focus-offset);
+  .upload-drop--over .upload-drop__mark { background: var(--c-accent); color: var(--c-accent-ink); transform: translateY(-2px); }
+  .upload-drop--off { cursor: not-allowed; border-color: var(--c-line); background: var(--c-surface); }
+  .upload-drop--off:hover { border-color: var(--c-line); }
+  .upload-drop--off .upload-drop__mark { background: var(--c-neutral-soft); color: var(--c-ink-muted); }
+  .upload-drop--off .upload-drop__action { color: var(--c-ink-muted); }
+  .upload-drop--off .upload-drop__btn { background: var(--c-neutral-soft); color: var(--c-ink-muted); border-color: var(--c-line); }
+  @media (prefers-reduced-motion: reduce) {
+    .upload-drop--over .upload-drop__mark { transform: none; }
   }
   .upload-queue {
     list-style: none;
@@ -197,7 +221,7 @@
     .upload-drop {
       padding: var(--s-4) var(--s-3);
     }
-    .upload-drop__input {
+    .upload-drop__btn {
       min-height: var(--target-touch);
     }
     .review-dialog {

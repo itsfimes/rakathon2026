@@ -112,7 +112,7 @@ export function UploadPanel({ capability, caseId, mockMode }: UploadPanelProps) 
             : 'Převod je na serveru vypnutý. Soubory teď nahrát nejde.'
           : null)
 
-  function onDrop(event: DragEvent<HTMLDivElement>) {
+  function onDrop(event: DragEvent<HTMLLabelElement>) {
     event.preventDefault()
     setOver(false)
     if (!enabled) return
@@ -129,20 +129,24 @@ export function UploadPanel({ capability, caseId, mockMode }: UploadPanelProps) 
         {!mockMode && capability !== null && uploads.caps !== null && uploads.caps.enabled && !uploads.caps.aiAvailable && (
           <p className="notice notice--info"><Icon name="info" /><span><strong>Server nemá klíč k umělé inteligenci.</strong> Soubor se bezpečně uloží a výsledek připraví ke kontrole člověkem.</span></p>
         )}
-        {enabled && (
-          <div className={over ? 'upload-drop upload-drop--over' : 'upload-drop'} onDragOver={event => { event.preventDefault(); setOver(true) }}
+        {(enabled || disabledReason) && (
+          // The whole zone is the label of the visually hidden native input: click/tap anywhere opens the picker,
+          // keyboard focus lands on the input and is drawn on the visible "Vybrat soubory" button.
+          <label className={`upload-drop${over ? ' upload-drop--over' : ''}${enabled ? '' : ' upload-drop--off'}`}
+            onDragOver={event => { event.preventDefault(); if (enabled) setOver(true) }}
             onDragLeave={() => setOver(false)} onDrop={onDrop}>
-            <Icon name="file" />
-            <p><strong>Vyberte soubory</strong> nebo je sem přetáhněte.</p>
-            <p className="meta">Libovolný typ kromě spustitelných, každý do 5 MiB. Neznámý soubor server přijme a prozkoumá.</p>
+            <span className="upload-drop__mark"><Icon name="upload" /></span>
+            <span className="upload-drop__action"><strong>Vyberte soubory</strong> nebo je sem přetáhněte.</span>
+            <span className="btn upload-drop__btn" aria-hidden="true">Vybrat soubory</span>
             <input ref={inputRef} type="file" multiple className="upload-drop__input" aria-label="Vybrat soubory k nahrání"
-              aria-describedby="upload-drop-hint" onChange={event => {
+              aria-describedby="upload-drop-rules upload-drop-hint" disabled={!enabled} onChange={event => {
                 const files = Array.from(event.target.files ?? [])
                 event.target.value = ''
                 if (files.length > 0) uploads.queueFiles(files)
               }} />
-            <p className="meta" id="upload-drop-hint">Odesílá se po jednom souboru, aby server stíhal.</p>
-          </div>
+            <span className="upload-drop__rules" id="upload-drop-rules">Libovolný typ kromě spustitelných, každý do 5 MiB. Neznámý soubor server přijme a prozkoumá.</span>
+            <span className="upload-drop__hint" id="upload-drop-hint"><Icon name="clock" small />Odesílá se po jednom souboru, aby server stíhal.</span>
+          </label>
         )}
         {uploads.pending.length > 0 && (
           <section aria-label="Fronta k odeslání">

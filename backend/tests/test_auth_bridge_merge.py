@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import secrets
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +20,7 @@ from rakathon_backend.runtime.auth_bundle import (
     build_auth_app,
     fresh_tokens_with_auth,
 )
-from rakathon_backend.web.auth_bridge import AuthBridge, binding_key_for
+from rakathon_backend.web.auth_bridge import AuthBridge
 from rakathon_backend.web.config import COOKIE_LOOPBACK, WebConfig
 from rakathon_backend.web.edge import build_login_callables
 from rakathon_backend.web.router import AuthHTTPRouter
@@ -85,11 +84,9 @@ async def make_stack(
         ai_mode=ai_mode,
     )
     await app.start()
-    root = secrets.token_bytes(32)
     bridge = AuthBridge(
         tmp_path / "rt",
         tokens[WEB_SOURCE],
-        root,
         assistant_enabled=assistant,
         assistant_ready=lambda: app.gateway is not None and app.gateway.mode == "direct",
     )
@@ -103,7 +100,6 @@ async def make_stack(
         "bridge": bridge,
         "router": router,
         "tokens": tokens,
-        "root": root,
         "viewer": viewer,
         "clinician": clinician,
         "admin": admin,
@@ -176,7 +172,7 @@ async def test_viewer_clinical_200_opaque_uid(tmp_path: Path) -> None:
         await stack["app"].close()
 
 
-async def test_parallel_isolated_and_cross_user_409(tmp_path: Path) -> None:
+async def test_each_authorized_human_can_read_selected_record(tmp_path: Path) -> None:
     stack = await make_stack(tmp_path, ai_mode="direct", assistant=True)
     try:
         router = stack["router"]
@@ -189,16 +185,15 @@ async def test_parallel_isolated_and_cross_user_409(tmp_path: Path) -> None:
         )
         status_a, _ = await call_router(router, "GET", "/api/v1/cases/synthetic-1", headers_a, None)
         assert status_c == 200 and status_a == 200
-        assert "assistantPreview" in case_c
-        preview = case_c["assistantPreview"]["pacient"]
-        good = {"role": "pacient", "text": "Explain supplied metadata", **preview}
+        assert "assistantPreview" not in case_c
+        good = {"role": "pacient", "text": "Explain record", "caseId": "synthetic-1"}
         body = json.dumps(good).encode()
         status, resp = await call_router(
             router, "POST", "/api/v1/assistant", auth_headers(token_c, csrf_c, body), body
         )
         assert status == 200 and resp["text"] == "Synthetic answer"
         assert resp["provenance"] == "server"
-        cross = {"role": "pacient", "text": "Explain supplied metadata", **preview}
+        cross = {"role": "pacient", "text": "Explain record", "caseId": "synthetic-1"}
         cross_body = json.dumps(cross).encode()
         status, resp = await call_router(
             router,
@@ -207,8 +202,7 @@ async def test_parallel_isolated_and_cross_user_409(tmp_path: Path) -> None:
             auth_headers(token_a, csrf_a, cross_body),
             cross_body,
         )
-        assert status == 409
-        assert "Synthetic" not in json.dumps(resp)
+        assert status == 200 and resp["sources"] == ["Patient/synthetic-1"]
     finally:
         await stack["app"].close()
 
@@ -221,8 +215,8 @@ async def test_viewer_assistant_403_before_ai(tmp_path: Path) -> None:
         token_c, _csrf_c = await login_pair(stack, "clinician.one")
         headers_c = auth_headers(token_c)
         _, case = await call_router(router, "GET", "/api/v1/cases/synthetic-1", headers_c, None)
-        preview = case["assistantPreview"]["pacient"]
-        good = {"role": "pacient", "text": "Question", **preview}
+        assert "assistantPreview" not in case
+        good = {"role": "pacient", "text": "Question", "caseId": "synthetic-1"}
         body = json.dumps(good).encode()
         status, _ = await call_router(
             router, "POST", "/api/v1/assistant", auth_headers(token_v, csrf_v, body), body
@@ -281,15 +275,13 @@ async def test_stale_concurrency_and_mapping(tmp_path: Path) -> None:
         token_c, csrf_c = await login_pair(stack, "clinician.one")
         headers_c = auth_headers(token_c)
         _, case = await call_router(router, "GET", "/api/v1/cases/synthetic-1", headers_c, None)
-        preview = case["assistantPreview"]["pacient"]
-        tampered = json.loads(json.dumps(preview))
-        tampered["binding"]["token"] = "1." + "0" * 64
-        bad = {"role": "pacient", "text": "Q", **tampered}
+        assert "assistantPreview" not in case
+        bad = {"role": "pacient", "text": "Q", "binding": {"token": "obsolete"}}
         bad_body = json.dumps(bad).encode()
         status, resp = await call_router(
             router, "POST", "/api/v1/assistant", auth_headers(token_c, csrf_c, bad_body), bad_body
         )
-        assert status == 409
+        assert status == 400
         assert "Synthetic" not in json.dumps(resp)
         assert bridge._ai_gate.acquire(blocking=False)
         try:
@@ -318,9 +310,5 @@ async def test_stale_concurrency_and_mapping(tmp_path: Path) -> None:
         assert status == 405
         status, _ = await call_router(router, "GET", "/api/v1/cases/bad id!", headers_c, None)
         assert status in (400, 404)
-        key = binding_key_for(stack["root"], stack["clinician"].user_id, 1)
-        assert len(key) == 32
-        other = binding_key_for(stack["root"], stack["admin"].user_id, 1)
-        assert key != other
     finally:
         await stack["app"].close()

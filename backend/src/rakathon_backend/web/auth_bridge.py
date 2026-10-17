@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import hmac
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -12,6 +10,7 @@ from rakathon_backend.common.contracts import DataKind, Envelope
 from rakathon_backend.common.errors import AuthError, ContractError, TransportError
 from rakathon_backend.common.ipc import UnixJsonClient
 from rakathon_backend.common.rpc import new_envelope, socket_for
+from rakathon_backend.uploads.store import UploadStore
 from rakathon_backend.web.assistant import validate_request
 from rakathon_backend.web.contracts import WebError
 from rakathon_backend.web.projection import ID
@@ -25,11 +24,6 @@ SESSION_PATH = "/api/v1/session"
 WORKSPACE_PATH = "/api/v1/workspace"
 CASES_PREFIX = "/api/v1/cases/"
 ASSISTANT_PATH = "/api/v1/assistant"
-
-
-def binding_key_for(root: bytes, user_id: str, auth_version: int) -> bytes:
-    msg = b"auth-binding-v1\x00" + user_id.encode("utf-8") + b"\x00" + str(auth_version).encode()
-    return hmac.new(bytes(root), msg, hashlib.sha256).digest()
 
 
 def _error(status: int, code: str, message: str) -> tuple[int, dict[str, Any]]:
@@ -113,18 +107,16 @@ class AuthBridge:
         self,
         runtime_dir: Path | str,
         web_token: str,
-        binding_root: bytes,
         *,
         assistant_enabled: bool = False,
         assistant_ready: Callable[[], bool] | None = None,
+        uploads: UploadStore | None = None,
     ) -> None:
         if not isinstance(web_token, str) or not web_token:
             raise ValueError("web token must be nonempty")
-        if not isinstance(binding_root, (bytes, bytearray)) or len(bytes(binding_root)) != 32:
-            raise ValueError("binding root must be 32 bytes")
         self._dir = Path(runtime_dir)
         self._token = web_token
-        self._root = bytes(binding_root)
+        self._uploads = uploads
         self._assistant_enabled = bool(assistant_enabled)
         self._ready = assistant_ready if assistant_ready is not None else (lambda: False)
         self._ai_gate = threading.Semaphore(1)
@@ -183,17 +175,13 @@ class AuthBridge:
     ) -> WebService:
         read_client = IdentityClient(self._dir, self._token, identity.user_id, READ_TIMEOUT)
         ai_client: IdentityClient | None = None
-        key: bytes | None = None
         if with_assistant and human_allowed and self._assistant_enabled and self._ready():
             ai_client = IdentityClient(self._dir, self._token, "web-assistant", AI_TIMEOUT)
-            key = binding_key_for(self._root, identity.user_id, identity.auth_version)
-        elif with_assistant:
-            key = binding_key_for(self._root, identity.user_id, identity.auth_version)
         return WebService(
             read_client,
             ai_client,
             lambda: bool(self._assistant_enabled and self._ready() and ai_client is not None),
-            binding_key=key,
+            uploads=self._uploads,
         )
 
     async def _session(self, identity: VerifiedIdentity) -> tuple[int, dict[str, Any]]:

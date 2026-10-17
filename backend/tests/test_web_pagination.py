@@ -16,7 +16,6 @@ from rakathon_backend.common.contracts import DataKind
 from rakathon_backend.common.errors import ContractError
 from rakathon_backend.common.rpc import new_envelope
 from rakathon_backend.runtime.application import BackendApp, fresh_tokens
-from rakathon_backend.web.assistant_context import SnapshotBindings
 from rakathon_backend.web.contracts import WebError
 from rakathon_backend.web.service import MAX_OBSERVATION_BYTES, MAX_SECTION_BYTES, WebService
 
@@ -148,13 +147,10 @@ async def test_observation_only_larger_section_budget(
     assert section["reason"] == (None if expected == "complete" else "resource_limit")
 
 
-async def test_binding_invalidates_literal_and_coverage_changes() -> None:
+async def test_case_has_no_obsolete_assistant_preview() -> None:
     client = FakeClient()
     case = (await WebService(client).case("synthetic-1"))[1]
-    bindings = SnapshotBindings(lambda: 1000)
-    preview = bindings.previews(case)["pacient"]
-    case["sections"]["observations"]["receivedCount"] = 1
-    assert not bindings.matches(case, "pacient", preview["binding"]["token"], preview["context"])
+    assert "assistantPreview" not in case
 
 
 async def test_patient_projection_byte_cap_prevents_section_reads() -> None:

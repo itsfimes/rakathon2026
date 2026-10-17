@@ -5,7 +5,6 @@ import asyncio
 import contextlib
 import json
 import os
-import secrets
 import signal
 import sys
 import threading
@@ -34,6 +33,7 @@ from rakathon_backend.runtime.auth_bundle import (
 from rakathon_backend.runtime.iris_fhir import IRIS_FHIR_MODE, build_iris_fhir_app
 from rakathon_backend.runtime.screening_cmds import archive_store_from_env
 from rakathon_backend.runtime.upload_wiring import maybe_build_uploads as _maybe_build_uploads
+from rakathon_backend.uploads.store import UploadStore
 from rakathon_backend.web.auth_bridge import AuthBridge
 from rakathon_backend.web.config import WebConfig, load_proxy_key
 from rakathon_backend.web.demo_login import DemoLoginConfig, load_demo_login_file
@@ -192,10 +192,16 @@ async def cmd_auth_serve(args: argparse.Namespace) -> int:
         B7SocketClient(runtime_dir, tokens[WEB_SOURCE])
     )
     router = AuthHTTPRouter(web_config, proxy_key, login, resolve, csrf_for, logout, demo=demo)
-    binding_root = secrets.token_bytes(32)
     upload_worker: Any = None
+    assistant_uploads: list[UploadStore] = []
     try:
-        upload_worker = _maybe_build_uploads(args, runtime_dir, tokens[WEB_SOURCE], router)
+        upload_worker = _maybe_build_uploads(
+            args,
+            runtime_dir,
+            tokens[WEB_SOURCE],
+            router,
+            set_assistant_uploads=assistant_uploads.append,
+        )
     except ContractError as exc:
         await app.close()
         if adapter is not None:
@@ -218,9 +224,9 @@ async def cmd_auth_serve(args: argparse.Namespace) -> int:
     bridge = AuthBridge(
         runtime_dir,
         tokens[WEB_SOURCE],
-        binding_root,
         assistant_enabled=(requested and ai_mode == "direct"),
         assistant_ready=_assistant_ready,
+        uploads=assistant_uploads[0] if assistant_uploads else None,
     )
     router.set_protected(bridge.protected)
     try:

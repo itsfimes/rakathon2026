@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import threading
+from pathlib import Path
 from typing import Any, ClassVar
 
 import httpx
@@ -195,7 +196,7 @@ def _run_wrapped_unshare(
         capture_output=True,
         timeout=170,
         text=True,
-        cwd="/mnt/870Ext/sync/programming/rakathon/rakathon2026/backend",
+        cwd=Path(__file__).resolve().parents[1],
         env=child_env,
     )
 

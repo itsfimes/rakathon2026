@@ -17,8 +17,10 @@ from rakathon_backend.common.contracts import DataKind
 from rakathon_backend.common.errors import ContractError
 from rakathon_backend.common.rpc import new_envelope
 from rakathon_backend.runtime.application import BackendApp
+from rakathon_backend.uploads.store import UploadStore
 from rakathon_backend.web.assistant import WebAssistant
 from rakathon_backend.web.contracts import Client, WebError
+from rakathon_backend.web.patient_context import collect_patient_context
 from rakathon_backend.web.projection import (
     MAX_ITEMS,
     ProjectionError,
@@ -81,18 +83,16 @@ class WebService:
         assistant_client: Client | None = None,
         assistant_ready: Callable[[], bool] = lambda: True,
         *,
-        binding_key: bytes | None = None,
-        binding_clock: Callable[[], float] | None = None,
+        uploads: UploadStore | None = None,
     ) -> None:
         self.client = client
+        self.uploads = uploads
         self._slots = asyncio.Semaphore(4)
         self.assistant: WebAssistant | None
         if assistant_client is not None:
             self.assistant = WebAssistant(
                 assistant_client,
-                self._case,
-                binding_key=binding_key,
-                binding_clock=binding_clock,
+                self._patient_context,
             )
         else:
             self.assistant = None
@@ -259,10 +259,10 @@ class WebService:
             }
 
     async def case(self, patient_id: str) -> tuple[int, dict[str, Any]]:
-        status, case = await self._case(patient_id)
-        if self.assistant is not None and self.assistant_ready():
-            case["assistantPreview"] = self.assistant.bindings.previews(case)
-        return status, case
+        return await self._case(patient_id)
+
+    async def _patient_context(self, patient_id: str) -> dict[str, Any]:
+        return await collect_patient_context(self._read, patient_id, self.uploads)
 
     async def send_assistant(self, request: Any) -> tuple[int, dict[str, Any]]:
         if self.assistant is None or not self.assistant_ready():

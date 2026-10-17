@@ -103,7 +103,7 @@ class DirectProviderConfig:
     allow_remote: bool = False
     allow_insecure_loopback: bool = False
     timeout_seconds: float = 60.0
-    max_request_bytes: int = 1_048_576
+    max_request_bytes: int = 4_194_304
     max_response_bytes: int = 2_097_152
     max_content_bytes: int = 1_048_576
 

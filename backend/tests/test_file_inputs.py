@@ -218,7 +218,7 @@ def test_prepare_pdf_two_pages_mocked(tmp_path: Path, monkeypatch: pytest.Monkey
             Path(prefix + f"-{page}.png").write_bytes(_png())
         return _completed(b"")
 
-    monkeypatch.setattr(file_inputs_mod.subprocess, "run", _fake)
+    monkeypatch.setattr(subprocess, "run", _fake)
     with prepare_file_inputs(str(target)) as prep:
         assert prep.kind == "pdf"
         assert prep.suffix == ".pdf"
@@ -242,7 +242,7 @@ def test_prepare_pdf_three_pages_never_truncates(
         calls.append(list(cmd))
         return _completed(b"Pages: 3\nEncrypted: no\n")
 
-    monkeypatch.setattr(file_inputs_mod.subprocess, "run", _fake)
+    monkeypatch.setattr(subprocess, "run", _fake)
     with pytest.raises(FileInputError) as caught, prepare_file_inputs(str(target)):
         pass
     assert caught.value.code == "file_page_limit"
@@ -259,7 +259,7 @@ def test_prepare_pdf_tool_failures_stay_manual_free(
     def _encrypted(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
         return _completed(b"Pages: 1\nEncrypted: yes (print:yes copy:yes change:yes)\n")
 
-    monkeypatch.setattr(file_inputs_mod.subprocess, "run", _encrypted)
+    monkeypatch.setattr(subprocess, "run", _encrypted)
     with pytest.raises(FileInputError) as caught, prepare_file_inputs(str(target)):
         pass
     assert caught.value.code == "encrypted_pdf"
@@ -267,7 +267,7 @@ def test_prepare_pdf_tool_failures_stay_manual_free(
     def _timeout(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
         raise subprocess.TimeoutExpired(cmd, 20.0)
 
-    monkeypatch.setattr(file_inputs_mod.subprocess, "run", _timeout)
+    monkeypatch.setattr(subprocess, "run", _timeout)
     with pytest.raises(FileInputError) as caught2, prepare_file_inputs(str(target)):
         pass
     assert caught2.value.code == "pdf_unreadable"

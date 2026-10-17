@@ -20,7 +20,7 @@ from rakathon_backend.common.framing import (
 from rakathon_backend.common.health import socket_present
 from rakathon_backend.common.review_limits import normalize_action_timeouts
 
-MAX_FRAME_BYTES = 1_048_576
+MAX_FRAME_BYTES = 4_194_304
 DEFAULT_TIMEOUT = 5.0
 Handler = Callable[[Envelope], Awaitable[Envelope]]
 

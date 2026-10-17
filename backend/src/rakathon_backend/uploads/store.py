@@ -183,6 +183,11 @@ class UploadStore:
                 raise
             return dict(job)
 
+    def list_case(self, case_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            out = [dict(j) for j in self._jobs.values() if j.get("caseId") == case_id]
+        return sorted(out, key=lambda j: str(j.get("createdAt", "")))
+
     def claim_next(self) -> dict[str, Any] | None:
         with self._lock:
             running = any(j.get("status") == "running" for j in self._jobs.values())

@@ -17,7 +17,12 @@ from rakathon_backend.b2.iris.newreview import (
 )
 from rakathon_backend.b2.iris.pagination import collect
 from rakathon_backend.common.errors import ContractError, TransportError
-from rakathon_backend.common.fhir import ALLOWED_TYPES, check_bundle, check_resource
+from rakathon_backend.common.fhir import (
+    ALLOWED_TYPES,
+    READ_ALLOWED_TYPES,
+    check_bundle,
+    check_resource,
+)
 
 _ID_RE = re.compile(r"^[A-Za-z0-9\-.]{1,64}$")
 _PARAM_KEY_RE = re.compile(r"^[A-Za-z0-9_\-.]{1,64}$")
@@ -77,7 +82,7 @@ class DirectFhirAdapter:
             self._client.close()
 
     def _path(self, resource_type: str, rid: str | None = None) -> str:
-        if resource_type not in ALLOWED_TYPES:
+        if resource_type not in READ_ALLOWED_TYPES:
             raise ContractError(code="bad_payload", message="resourceType unsupported")
         if rid is not None and _ID_RE.fullmatch(rid) is None:
             raise ContractError(code="bad_payload", message="id invalid")
