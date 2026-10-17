@@ -97,10 +97,10 @@ export function AttentionPanel({ detail, role, onNavigate }: { readonly detail: 
 export function CaseSectionBody({ detail, role, section, overview }: {
   readonly detail: CaseDetail; readonly role: ClinicianRole; readonly section: ClinicianSection; readonly overview: ReactNode
 }) {
-  if (section === 'overview') return <><CoverageNotice coverage={detail.clinical?.coverage} />{overview}</>
+  if (section === 'overview') return <><CoverageNotice coverage={detail.clinical?.coverage} detail={detail.clinical?.collectionCoverage} />{overview}</>
   if (!detail.clinical) return <RecordUnavailable />
   const prefix = `t-${role}-${section}`
-  if (section === 'record') return <ClinicalRecordBody domains={detail.clinical.domains} sources={detail.clinical.sources} coverage={detail.clinical.coverage} idPrefix={prefix} />
+  if (section === 'record') return <ClinicalRecordBody domains={detail.clinical.domains} sources={detail.clinical.sources} coverage={detail.clinical.coverage} coverageDetail={detail.clinical.collectionCoverage} idPrefix={prefix} />
   if (section === 'care') return <CareBody record={detail.clinical} idPrefix={prefix} />
   return <PersonBody record={detail.clinical} idPrefix={prefix} />
 }

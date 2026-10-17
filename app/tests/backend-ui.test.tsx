@@ -57,7 +57,7 @@ describe('connected backend nullable role views', () => {
     await mount(`${role}/case/synthetic-0/record`)
     expect(await screen.findByText('Synthetic supplied report')).toBeInTheDocument()
     expect(screen.getByText(/Synthetic supplied condition/)).toBeInTheDocument()
-    expect(screen.getByText('Část zdrojových dat není dostupná')).toBeInTheDocument()
+    expect(screen.getByText('Nepodařilo se načíst: Pozorování, laboratorní výsledky a měření')).toBeInTheDocument()
     expect(screen.getByText(/Laboratorní výsledky nejsou dostupné/)).toBeInTheDocument()
     expect(screen.queryByText('Žádný laboratorní výsledek není v záznamu.')).not.toBeInTheDocument()
     expect(document.querySelector('main')!.textContent).not.toContain('0 let')

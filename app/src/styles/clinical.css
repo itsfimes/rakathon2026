@@ -46,6 +46,9 @@
   .fact > .disclosure:not([open]) > summary, .table td .disclosure:not([open]) > summary, .req-list .disclosure:not([open]) > summary { padding-inline: 0; }
   .fact > .disclosure[open], .req-list .disclosure[open] { justify-self: stretch; }
   .report-text { display: grid; gap: var(--s-1); }
+  /* Report document properties: one quiet wrapping line, never styled like a finding. */
+  .report-line { display: flex; flex-wrap: wrap; gap: 0 var(--s-2); color: var(--c-ink-muted); font-size: var(--fs-sm); }
+  .report-line > span + span::before { content: "·"; margin-right: var(--s-2); }
 
   .fields { display: grid; grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr); gap: var(--s-1) var(--s-4); font-size: var(--fs-sm); max-width: 60rem; }
   .fields > div { display: contents; }
@@ -118,4 +121,7 @@
   @media (forced-colors: active) {
     .section-nav__link[aria-current="page"] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
   }
+  .coverage-notice__list { margin: var(--s-1) 0 0; padding-left: 1.1em; display: grid; gap: var(--s-1); }
+  .coverage-notice__count { font-variant-numeric: tabular-nums; }
+  .coverage-notice__meaning { margin: var(--s-2) 0 0; max-width: 72ch; }
 }

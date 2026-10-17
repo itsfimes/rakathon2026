@@ -4,6 +4,8 @@ import argparse
 import asyncio
 import contextlib
 import json
+import os
+import secrets
 import signal
 import sys
 import threading
@@ -13,6 +15,10 @@ from typing import Any
 from rakathon_backend.b2.auth.iris_store import IrisAuthStore
 from rakathon_backend.b2.auth.sqlite_store import SQLiteDemoAuthStore
 from rakathon_backend.b2.iris.config import IrisSqlConfig
+from rakathon_backend.b5.direct import DirectAdapter, direct_config_from_env
+from rakathon_backend.b5.direct_http import DirectHttpTransport
+from rakathon_backend.b5.gateway import AIAdapter
+from rakathon_backend.b5.safety import configured_kill_file, kill_requested
 from rakathon_backend.b7.client import B7SocketClient
 from rakathon_backend.b7.provider import LocalPasswordProvider
 from rakathon_backend.common.errors import ContractError, TransportError
@@ -27,6 +33,7 @@ from rakathon_backend.runtime.auth_bundle import (
 )
 from rakathon_backend.runtime.iris_fhir import IRIS_FHIR_MODE, build_iris_fhir_app
 from rakathon_backend.runtime.screening_cmds import archive_store_from_env
+from rakathon_backend.web.auth_bridge import AuthBridge
 from rakathon_backend.web.config import WebConfig, load_proxy_key
 from rakathon_backend.web.edge import build_login_callables
 from rakathon_backend.web.router import AuthHTTPRouter
@@ -87,37 +94,134 @@ async def cmd_auth_serve(args: argparse.Namespace) -> int:
     if not str(runtime_dir):
         print(json.dumps({"error": "runtime-dir is required for auth-serve"}))
         return 2
+    assistant_flag = bool(getattr(args, "assistant", False))
+    env_assistant = os.environ.get("RAKATHON_WEB_ASSISTANT_ENABLE") == "1"
+    requested = assistant_flag or env_assistant
+    adapter: AIAdapter | None = None
+    ai_mode = "mock"
+    kill_file: Path | None = None
+    if requested:
+        if os.environ.get("RAKATHON_AI_AUTH_SCHEME") not in (
+            "api-key",
+            "bearer",
+            "subscription-key",
+            "Ocp-Apim-Subscription-Key",
+        ):
+            print(json.dumps({"error": "assistant_requires_explicit_auth_scheme"}))
+            return 2
+        try:
+            direct_config = direct_config_from_env()
+        except (ContractError, TransportError, ValueError) as exc:
+            print(json.dumps({"error": "ai_not_configured", "message": str(exc)}))
+            return 2
+        if direct_config.auth_scheme == "none":
+            print(json.dumps({"error": "assistant_requires_explicit_auth_scheme"}))
+            return 2
+        if direct_config.timeout_seconds > 60:
+            print(json.dumps({"error": "assistant_timeout_must_not_exceed_60"}))
+            return 2
+        try:
+            adapter = DirectAdapter(DirectHttpTransport(direct_config))
+        except (ContractError, TransportError, OSError, ValueError) as exc:
+            print(json.dumps({"error": "ai_not_configured", "message": str(exc)}))
+            return 2
+        ai_mode = "direct"
+        kill_file = configured_kill_file()
     tokens = fresh_tokens_with_auth()
     try:
         if storage == IRIS_FHIR_MODE:
-            base = build_iris_fhir_app(runtime_dir, dict(tokens), screening=screening)
-            app = build_auth_app(runtime_dir, tokens, service, store=base.store, mode=base.mode)
+            base = build_iris_fhir_app(
+                runtime_dir,
+                dict(tokens),
+                adapter=adapter,
+                ai_mode=ai_mode,
+                kill_file=kill_file,
+                screening=screening,
+            )
+            app = build_auth_app(
+                runtime_dir,
+                tokens,
+                service,
+                store=base.store,
+                mode=base.mode,
+                screening=screening,
+                ai_adapter=adapter,
+                ai_mode=ai_mode,
+                kill_file=kill_file,
+            )
             app.screening = screening
         else:
-            app = build_auth_app(runtime_dir, tokens, service, mode="mock", screening=screening)
+            app = build_auth_app(
+                runtime_dir,
+                tokens,
+                service,
+                mode="mock",
+                screening=screening,
+                ai_adapter=adapter,
+                ai_mode=ai_mode,
+                kill_file=kill_file,
+            )
     except (ContractError, TransportError, OSError, ValueError) as exc:
+        if adapter is not None:
+            with contextlib.suppress(OSError, RuntimeError):
+                await adapter.close()
         print(json.dumps({"error": "serve_startup_failed", "message": str(exc)}))
         return 1
     try:
         await app.start()
     except (ContractError, TransportError, OSError, ValueError, RuntimeError) as exc:
+        if adapter is not None:
+            with contextlib.suppress(OSError, RuntimeError):
+                await adapter.close()
         print(json.dumps({"error": "serve_startup_failed", "message": str(exc)}))
         return 1
     login, resolve, csrf_for, logout = build_login_callables(
         B7SocketClient(runtime_dir, tokens[WEB_SOURCE])
     )
     router = AuthHTTPRouter(web_config, proxy_key, login, resolve, csrf_for, logout)
+    binding_root = secrets.token_bytes(32)
+
+    def _assistant_ready() -> bool:
+        try:
+            gateway = app.gateway
+            if gateway is None or gateway.mode != "direct":
+                return False
+            if gateway.switch.tripped:
+                return False
+            return not kill_requested(configured_kill_file())
+        except (OSError, ValueError, RuntimeError, AttributeError):
+            return False
+
+    bridge = AuthBridge(
+        runtime_dir,
+        tokens[WEB_SOURCE],
+        binding_root,
+        assistant_enabled=(requested and ai_mode == "direct"),
+        assistant_ready=_assistant_ready,
+    )
+    router.set_protected(bridge.protected)
     try:
         bind = check_bind_host(str(getattr(args, "bind", "127.0.0.1") or "127.0.0.1"))
     except ValueError:
         await app.close()
+        if adapter is not None:
+            with contextlib.suppress(OSError, RuntimeError):
+                await adapter.close()
         print(json.dumps({"error": "bind must be loopback"}))
         return 2
-    port = int(getattr(args, "port", 8765) or 8765)
+    raw_port = getattr(args, "port", 8765)
+    try:
+        port = int(raw_port if raw_port is not None else 8765)
+    except (TypeError, ValueError):
+        print(json.dumps({"error": "port invalid"}))
+        return 2
     try:
         server = build_server(bind, port, router)
     except ValueError:
         await app.close()
+        if adapter is not None:
+            with contextlib.suppress(OSError, RuntimeError):
+                await adapter.close()
         print(json.dumps({"error": "bind must be loopback"}))
         return 2
     stop = asyncio.Event()
@@ -152,4 +256,7 @@ async def cmd_auth_serve(args: argparse.Namespace) -> int:
     finally:
         await asyncio.to_thread(_stop_http, server, thread)
         await app.close()
+        if adapter is not None:
+            with contextlib.suppress(OSError, RuntimeError):
+                await adapter.close()
     return 0

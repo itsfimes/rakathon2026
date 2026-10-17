@@ -1,4 +1,4 @@
-import type { ClinicalCoverage, ClinicalDomains, ClinicalFact, ClinicalSource, LabPayload, MedicationPayload } from '../../../data/clinical'
+import type { ClinicalCoverage, ClinicalRecord, ClinicalDomains, ClinicalFact, ClinicalSource, LabPayload, MedicationPayload } from '../../../data/clinical'
 import { Notice } from '../../../components/ui/Notice'
 import { Panel, PanelBody } from '../../../components/ui/Panel'
 import { StackCell, Table } from '../../../components/ui/Table'
@@ -6,9 +6,11 @@ import { Tag } from '../../../components/ui/Tag'
 import { Fields, FactBlock, FactTags, SourceInspect } from './FactBlock'
 import { clinicalTimeText, HISTORY_CATEGORY, LAB_FLAG, LAB_PANEL, MEASUREMENT_TYPE, MEDICATION_STATEMENT, ONCOLOGY_KIND, SUSCEPTIBILITY } from './clinicalText'
 import { CoverageNotice } from './CoverageNotice'
+import { ReportItems, ReportLine } from './ReportMeta'
 
 interface BodyProps {
   readonly coverage?: ClinicalCoverage | undefined
+  readonly coverageDetail?: ClinicalRecord['collectionCoverage'] | undefined
   readonly domains: ClinicalDomains
   readonly sources: readonly ClinicalSource[]
   /** Distinct heading ids when two bodies could ever share a page. */
@@ -19,10 +21,10 @@ const yesNo = (value: boolean | undefined) => value === undefined ? undefined : 
 const none = (count: number, text: string) => count === 0 ? <p className="placeholder-text">{text}</p> : null
 
 /** Health data and results: grouped readable renderers for the supplied domains. */
-export function ClinicalRecordBody({ domains, sources, idPrefix, coverage }: BodyProps) {
+export function ClinicalRecordBody({ domains, sources, idPrefix, coverage, coverageDetail }: BodyProps) {
   return (
     <div className="record">
-      <CoverageNotice coverage={coverage} />
+      <CoverageNotice coverage={coverage} detail={coverageDetail} />
       <OncologyPanel facts={domains.oncologyHistology} sources={sources} id={`${idPrefix}-onc`} />
       <ImagingPanel facts={domains.imagingProcedures} sources={sources} id={`${idPrefix}-img`} unavailable={coverage?.diagnosticReports === 'unavailable' || coverage?.documents === 'unavailable'} />
       <LabsPanel facts={domains.labs} sources={sources} id={`${idPrefix}-lab`} unavailable={coverage?.observations === 'unavailable'} />
@@ -74,7 +76,8 @@ function ImagingPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDo
           {facts.map(fact => {
             const v = fact.value
             return (
-              <FactBlock key={fact.id} fact={fact} sources={sources} title={v.type} time={v.date ?? fact.effective} timeLabel="Datum vyšetření">
+              <FactBlock key={fact.id} fact={fact} sources={sources} title={v.type} showTime={false}>
+                <ReportLine date={v.date ?? fact.effective} meta={v.meta} />
                 <Fields items={[['Oblast', v.site], ['Indikace', v.indication]]} />
                 {v.findings && <div className="report-text"><h5>Nález</h5><p>{v.findings}</p></div>}
                 {v.conclusion && <div className="report-text"><h5>Závěr</h5><p>{v.conclusion}</p></div>}
@@ -85,6 +88,7 @@ function ImagingPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDo
                 {v.biopsy && <Fields items={[
                   ['Odběr – metoda', v.biopsy.method], ['Počet vzorků', v.biopsy.sampleCount?.toString()], ['Místo odběru', v.biopsy.sampleSite], ['Komplikace', v.biopsy.complications],
                 ]} />}
+                <ReportItems meta={v.meta} />
               </FactBlock>
             )
           })}

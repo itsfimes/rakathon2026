@@ -68,11 +68,13 @@ interface FactBlockProps {
   readonly kicker?: string | undefined
   readonly time?: ClinicalTime
   readonly timeLabel?: string
+  /** False when the caller already shows the time in its own leading line (avoids a duplicate date). */
+  readonly showTime?: boolean
   readonly children?: ReactNode
 }
 
 /** One supplied fact: title + visible status words, readable value, one quiet time line, sources on demand. */
-export function FactBlock({ fact, sources, title, kicker, time, timeLabel = 'Týká se doby', children }: FactBlockProps) {
+export function FactBlock({ fact, sources, title, kicker, time, timeLabel = 'Týká se doby', showTime = true, children }: FactBlockProps) {
   return (
     <article className="fact">
       <div className="fact__head">
@@ -80,7 +82,7 @@ export function FactBlock({ fact, sources, title, kicker, time, timeLabel = 'Tý
         <FactTags fact={fact} />
       </div>
       {children && <div className="fact__body">{children}</div>}
-      <p className="fact__meta">{timeLabel}: {clinicalTimeText(time ?? fact.effective)}</p>
+      {showTime && <p className="fact__meta">{timeLabel}: {clinicalTimeText(time ?? fact.effective)}</p>}
       <SourceInspect fact={fact} sources={sources} />
     </article>
   )

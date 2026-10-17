@@ -16,12 +16,15 @@ import { SourceReviewPanel } from './SourceReviewPanel'
 type DoctorViewProps = RoleViewProps & ClinicianNavigation
 
 /** Referring doctor: a neutral demo case list, then one case per page (referral and next step first, extraction review after). */
-export function DoctorView({ workspace, detail, actions, route, onNavigate, onReturn }: DoctorViewProps) {
+export function DoctorView({ workspace, detail, actions, route, onNavigate, onReturn, authed }: DoctorViewProps) {
   const backend = workspace.status === 'ready' && workspace.value.metadata.origin === 'backend'
+  const listLead = !backend ? 'Případy ze sdílené ukázkové fronty. Nejde o seznam vašich pacientů ani o přihlášení.'
+    : authed ? 'Případy ze zdroje IRIS. Přihlášení ověřuje server; nejde o seznam vašich pacientů.'
+    : 'Případy ze zdroje IRIS. Sdílený vývojový přístup, nikoli seznam vašich pacientů ani přihlášení.'
   if (route.page === 'list') {
     return (
       <>
-        <ViewHead id="t-lekar" icon="steth" title={backend ? 'Lékař: seznam případů' : 'Lékař: ukázkový seznam případů'} lead={backend ? 'Případy ze zdroje IRIS. Sdílený vývojový přístup, nikoli seznam vašich pacientů ani přihlášení.' : 'Případy ze sdílené ukázkové fronty. Nejde o seznam vašich pacientů ani o přihlášení.'} />
+        <ViewHead id="t-lekar" icon="steth" title={backend ? 'Lékař: seznam případů' : 'Lékař: ukázkový seznam případů'} lead={listLead} />
         {workspace.status === 'ready' ? (
           workspace.value.queue.length === 0
             ? <EmptyState title="Žádné případy" text={backend ? 'Zdroj dat nenabízí žádný případ.' : 'V ukázce teď není žádný případ.'} />

@@ -29,7 +29,7 @@ export function Transcript({ messages, available, scripted }: { readonly message
         : <li key={index} className="assistant-turn">
           <p className="assistant-turn__by"><Icon name="help" small />{provenanceText(message.reply.provenance)}</p>
           <p className="assistant-turn__text">{message.reply.text}</p>
-          {message.reply.sources.length > 0 && <p className="assistant-turn__sources">Zdroj: {message.reply.sources.map(source => ASSISTANT_SOURCE_LABELS[source]).join(', ')}</p>}
+          {message.reply.sources.length > 0 && <p className="assistant-turn__sources">{message.reply.provenance === 'server' ? 'Předaný kontext: ' : 'Zdroj: '}{message.reply.sources.map(source => ASSISTANT_SOURCE_LABELS[source]).join(', ')}</p>}
         </li>)}
     </ol>
   )

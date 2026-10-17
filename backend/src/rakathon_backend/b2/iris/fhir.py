@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from rakathon_backend.b2.iris.config import TRUSTED_REMOTE_BASE, IrisFhirConfig
+from rakathon_backend.b2.iris.pagination import collect
 from rakathon_backend.common.errors import ContractError, TransportError
 from rakathon_backend.common.fhir import ALLOWED_TYPES, check_bundle, check_resource
 
@@ -144,36 +145,7 @@ class DirectFhirAdapter:
     ) -> tuple[list[dict[str, Any]], int | None]:
         path = self._path(resource_type)
         clean = self._clean_params(params)
-        try:
-            response = self._client.get(path, params=clean)
-        except Exception as exc:
-            raise TransportError(code="bridge_error", message="iris unreachable") from exc
-        if response.status_code == 301 or response.status_code in (302, 303, 307, 308):
-            raise ContractError(code="remote_error", message="iris redirect refused")
-        if response.status_code in (401, 403):
-            raise ContractError(code="auth_failed", message="iris request failed")
-        if response.status_code != 200:
-            raise self._fail(response)
-        if len(response.content) > MAX_BODY:
-            raise ContractError(code="remote_error", message="iris response too large")
-        try:
-            body = response.json()
-        except Exception as exc:
-            raise ContractError(code="remote_error", message="iris response invalid") from exc
-        if not isinstance(body, dict) or body.get("resourceType") != "Bundle":
-            raise ContractError(code="remote_error", message="iris response invalid")
-        server_total = self._parse_total(body)
-        for link in body.get("link", []) if isinstance(body.get("link"), list) else []:
-            if isinstance(link, dict) and link.get("relation") == "next":
-                raise ContractError(code="truncated", message="paged results truncated")
-        out: list[dict[str, Any]] = []
-        entries = body.get("entry", [])
-        if not isinstance(entries, list):
-            raise ContractError(code="remote_error", message="iris response invalid")
-        for item in entries:
-            if isinstance(item, dict) and isinstance(item.get("resource"), dict):
-                out.append(dict(item["resource"]))
-        return (out, server_total)
+        return collect(self._client, self._config.base_url, resource_type, path, clean)
 
     def search(self, resource_type: str, params: dict[str, str]) -> list[dict[str, Any]]:
         items, _ = self._fetch_bundle(resource_type, params)

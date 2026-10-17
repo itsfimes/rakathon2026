@@ -1,3 +1,5 @@
+import type { CollectionCoverage } from './coverage'
+
 export type ClinicalTime =
   | { readonly kind: 'day'; readonly value: string }
   | { readonly kind: 'instant'; readonly value: string }
@@ -125,6 +127,21 @@ export interface ImagingProcedurePayload {
   readonly conclusion?: string
   readonly lesion?: { readonly site: string; readonly dimensions?: string; readonly vessels?: string; readonly ducts?: string; readonly nodes?: string; readonly distantFindings?: string }
   readonly biopsy?: { readonly method: string; readonly sampleCount?: number; readonly sampleSite?: string; readonly complications?: string }
+  /** Supplied document/report metadata, kept apart from findings so it never reads as a clinical finding.
+      Issued time stays on the ClinicalSource; values are literal display text from the source. */
+  readonly meta?: ReportMetadata
+}
+export interface ReportMetadata {
+  readonly status?: string
+  readonly documentStatus?: string
+  readonly category?: string
+  /** Display names of the result entries the report lists; no values are implied. */
+  readonly items?: readonly string[]
+  readonly attachments?: readonly { readonly title?: string; readonly contentType?: string; readonly format?: string; readonly created?: ClinicalTime }[]
+  readonly authors?: readonly string[]
+  readonly periodEnd?: ClinicalTime
+  /** False when the source supplied document metadata only, without attachment content. */
+  readonly contentSupplied?: boolean
 }
 export interface OncologyHistologyPayload {
   readonly kind: 'suspicion' | 'histology' | 'specialist-conclusion'
@@ -193,6 +210,7 @@ export interface ClinicalDomains {
 }
 export interface ClinicalRecord {
   readonly coverage?: ClinicalCoverage
+  readonly collectionCoverage?: Readonly<Record<keyof ClinicalCoverage, CollectionCoverage>>
   readonly revision: string
   readonly sources: readonly ClinicalSource[]
   readonly domains: ClinicalDomains

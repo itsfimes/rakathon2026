@@ -1,6 +1,6 @@
 export type AssistantRole = 'koordinator' | 'pacient' | 'lekar' | 'mdt'
-export type AssistantSourceId = 'task' | 'documents' | 'patient-instruction' | 'patient-event' | 'patient-contact' | 'referral' | 'obligations' | 'document-metadata'
-export type AssistantFieldKey = 'task-title' | 'task-organization' | 'task-due' | 'task-acknowledgement' | 'document-state' | 'instruction' | 'event-title' | 'event-date' | 'event-attendance' | 'event-followup' | 'contact' | 'referral-state' | 'obligations' | 'document-metadata'
+export type AssistantSourceId = 'task' | 'documents' | 'patient-instruction' | 'patient-event' | 'patient-contact' | 'referral' | 'obligations' | 'document-metadata' | 'record-coverage' | 'record-report-metadata'
+export type AssistantFieldKey = 'task-title' | 'task-organization' | 'task-due' | 'task-acknowledgement' | 'document-state' | 'instruction' | 'event-title' | 'event-date' | 'event-attendance' | 'event-followup' | 'contact' | 'referral-state' | 'obligations' | 'document-metadata' | 'record.coverage' | 'record.reportsSummary'
 export interface AssistantField {
   readonly key: AssistantFieldKey
   readonly source: AssistantSourceId
@@ -14,7 +14,10 @@ export interface AssistantRequest {
   readonly role: AssistantRole
   readonly text: string
   readonly context?: AssistantContext
+  readonly binding?: AssistantBinding
 }
+export interface AssistantBinding { readonly caseId: string; readonly token: string }
+export interface AssistantPreview { readonly context: AssistantContext; readonly binding: AssistantBinding }
 export interface AssistantReply {
   readonly provenance: 'scripted' | 'server'
   readonly text: string
@@ -38,6 +41,7 @@ export const ASSISTANT_SOURCE_LABELS: Readonly<Record<AssistantSourceId, string>
   'patient-instruction': 'Dodaný pokyn pro pacienta', 'patient-event': 'Dodaná událost pro pacienta',
   'patient-contact': 'Dodaný kontakt', referral: 'Dodané stavy odeslání',
   obligations: 'Dodané povinnosti odesílajícího', 'document-metadata': 'Dodaná metadata podkladů',
+  'record-coverage': 'Předané pokrytí záznamu', 'record-report-metadata': 'Předané názvy, data a stavy zpráv',
 })
 export const ASSISTANT_FIELD_LABELS: Readonly<Record<AssistantFieldKey, string>> = Object.freeze({
   'task-title': 'Další krok', 'task-organization': 'Odpovědná organizace', 'task-due': 'Dodaný termín',
@@ -45,4 +49,5 @@ export const ASSISTANT_FIELD_LABELS: Readonly<Record<AssistantFieldKey, string>>
   'event-title': 'Událost', 'event-date': 'Datum události', 'event-attendance': 'Účast',
   'event-followup': 'Následující informace', contact: 'Kontakt', 'referral-state': 'Stav odeslání',
   obligations: 'Povinnosti', 'document-metadata': 'Metadata podkladu',
+  'record.coverage': 'Pokrytí záznamu', 'record.reportsSummary': 'Metadata zprávy',
 })

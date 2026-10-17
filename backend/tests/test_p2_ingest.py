@@ -62,7 +62,11 @@ async def test_docx_route_sends_only_derived_ref() -> None:
         record = blob.get(bytes_ref)
         assert record.content_type == "text/plain"
         assert MARKER.encode() in record.data
-        entry = _bundle_entry("DocumentReference", "doc-1", {"status": "current", "content": [{}]})
+        entry = _bundle_entry(
+            "DocumentReference",
+            "doc-1",
+            {"status": "current", "content": [{"attachment": {"title": "Synthetic source"}}]},
+        )
         return {"bundle": {"resourceType": "Bundle", "type": "transaction", "entry": [entry]}}
 
     service = B1Service(blob, via_b5, _ok_auth)
@@ -126,7 +130,11 @@ async def test_docx_malicious_archive_maps_to_safe_error() -> None:
 
 
 def test_document_reference_only_bundle_is_valid() -> None:
-    entry = _bundle_entry("DocumentReference", "doc-9", {"status": "current", "content": [{}]})
+    entry = _bundle_entry(
+        "DocumentReference",
+        "doc-9",
+        {"status": "current", "content": [{"attachment": {"title": "Synthetic source"}}]},
+    )
     bundle = {"resourceType": "Bundle", "type": "transaction", "entry": [entry]}
     assert validate_bundle(bundle) is True
     assert resource_counts(bundle) == {"DocumentReference": 1}
@@ -138,9 +146,17 @@ def test_expanded_clinical_types_are_valid() -> None:
         _bundle_entry(
             "Observation",
             "o1",
-            {"status": "final", "code": {}, "subject": {"reference": "Patient/p1"}},
+            {
+                "status": "final",
+                "code": {"text": "Synthetic observation"},
+                "subject": {"reference": "Patient/p1"},
+            },
         ),
-        _bundle_entry("Condition", "c1", {"code": {}, "subject": {"reference": "Patient/p1"}}),
+        _bundle_entry(
+            "Condition",
+            "c1",
+            {"code": {"text": "Synthetic condition"}, "subject": {"reference": "Patient/p1"}},
+        ),
         _bundle_entry(
             "Procedure",
             "pr1",

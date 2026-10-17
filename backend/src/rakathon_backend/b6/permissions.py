@@ -22,6 +22,7 @@ VECTOR_ANON_SEARCH = "vector.anonymized.search"
 VECTOR_PATIENT_SEARCH = "vector.patient.search"
 AI_TRANSLATE = "ai.translate"
 AI_COMPLETE = "ai.complete"
+AI_ASK = "ai.ask"
 REMINDERS_READ = "reminders.read"
 WATCHDOG_TICK = "watchdog.tick"
 AUTHORIZE = "authorize"
@@ -40,6 +41,7 @@ ACTIONS = frozenset(
         VECTOR_PATIENT_SEARCH,
         AI_TRANSLATE,
         AI_COMPLETE,
+        AI_ASK,
         REMINDERS_READ,
         WATCHDOG_TICK,
         AUTHORIZE,

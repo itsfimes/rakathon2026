@@ -84,6 +84,7 @@ export interface PatientMeasurement {
 export interface PatientSharingWish { readonly text: string; readonly state: 'recorded' | 'declined' | 'unknown'; readonly scope?: string | undefined; readonly recordedAt?: ClinicalTime | undefined }
 export interface PatientRecord {
   readonly coverage?: ClinicalCoverage
+  readonly collectionCoverage?: ClinicalRecord['collectionCoverage']
   readonly revision: string
   readonly results: readonly PatientRecordEntry<PatientResult>[]
   readonly reports: readonly PatientRecordEntry<PatientReport>[]
@@ -109,6 +110,7 @@ const optionalTime = (value: ClinicalTime | undefined) => value ? patientTime(va
 /** Explicit DTO, not a clinician object spread. No identity IDs, internal review or conflict IDs. */
 export function buildPatientRecord(record: ClinicalRecord | undefined): PatientRecord | undefined {
   if (!record) return undefined
+  const entriesPerSection = record.collectionCoverage ? 1000 : PATIENT_RECORD_LIMITS.entriesPerSection
   let omittedCount = 0
   const resolve = (ref: SourceRef) => record.sources.filter(source => source.ref.sourceId === ref.sourceId && source.ref.version === ref.version)
   const entry = <T,>(fact: ClinicalFact<unknown>, value: T, label: string): PatientRecordEntry<T> => {
@@ -129,7 +131,7 @@ export function buildPatientRecord(record: ClinicalRecord | undefined): PatientR
     omittedCount++
     return false
   }).filter((_item, index) => {
-    if (index < PATIENT_RECORD_LIMITS.entriesPerSection) return true
+    if (index < entriesPerSection) return true
     omittedCount++
     return false
   })
@@ -176,7 +178,7 @@ export function buildPatientRecord(record: ClinicalRecord | undefined): PatientR
   ])
   const sharingWishes = section(d.identity.flatMap(fact => [...(fact.value.sharingWish ? [fact.value.sharingWish] : []), ...(fact.value.consents ?? [])].map(wish =>
     entry<PatientSharingWish>(fact, { text: wish.text, state: wish.state, scope: wish.scope, recordedAt: optionalTime(wish.recordedAt) }, 'Dodaný záznam přání a souhlasu'))))
-  return freezeClinicalSnapshot({ ...(record.coverage ? { coverage: { conditions: record.coverage.conditions, observations: record.coverage.observations,
+  return freezeClinicalSnapshot({ ...(record.collectionCoverage ? { collectionCoverage: record.collectionCoverage } : {}), ...(record.coverage ? { coverage: { conditions: record.coverage.conditions, observations: record.coverage.observations,
     diagnosticReports: record.coverage.diagnosticReports, documents: record.coverage.documents } } : {}),
     revision: record.revision, results, reports, medications, history, allergies, symptoms, measurements, personSupport, sharingWishes, omittedCount,
     limitations: ['Pouze dodané údaje, nikoli nové pokyny nebo ověření léčby.', 'Zaznamenané přání ke sdílení není oprávnění k přístupu. Nadlimitní položky nejsou zobrazeny.'],

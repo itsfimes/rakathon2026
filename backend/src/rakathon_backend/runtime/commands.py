@@ -5,49 +5,32 @@ import asyncio
 import contextlib
 import hashlib
 import json
-import os
 import signal
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
-from rakathon_backend.b5.opencode.adapter import OpenCodeAdapter
-from rakathon_backend.b5.opencode.config import OpenCodeConfig, from_env
-from rakathon_backend.b5.opencode.process import probe_version
-from rakathon_backend.b5.opencode.validation import AI_EDGE_TIMEOUT
+from rakathon_backend.b5.direct import DirectAdapter, direct_config_from_env
+from rakathon_backend.b5.direct_http import DirectHttpTransport
+from rakathon_backend.b5.gateway import AIAdapter
+from rakathon_backend.b5.safety import configured_kill_file
 from rakathon_backend.bridge.client import EncryptedBridgeStorage
 from rakathon_backend.bridge.crypto import generate_key_file
+from rakathon_backend.common.ai_limits import AI_EDGE_TIMEOUT
 from rakathon_backend.common.errors import AuthError, ContractError, TransportError
 from rakathon_backend.common.ipc import UnixJsonClient
 from rakathon_backend.common.kinds import request_kind
 from rakathon_backend.common.rpc import make_client, new_envelope, socket_for
 from rakathon_backend.runtime import bridge_cmds as _bridge_cmds
+from rakathon_backend.runtime.ai_factory import ai_config_from_env, probe_version, start_ai_adapter
 from rakathon_backend.runtime.application import BackendApp, fresh_tokens
 from rakathon_backend.runtime.demo import run_demo
 from rakathon_backend.runtime.iris_fhir import IRIS_FHIR_MODE, build_iris_fhir_app
+from rakathon_backend.runtime.paths import short_runtime
 from rakathon_backend.runtime.screening_cmds import archive_store_from_env
 from rakathon_backend.runtime.secret_config import remove_client_config, write_client_config
 
-
-def short_runtime(explicit: str | None) -> Path:
-    if explicit:
-        return Path(explicit)
-    base = Path("/tmp/opencode")
-    base.mkdir(parents=True, exist_ok=True)
-    return Path(tempfile.mkdtemp(prefix="rak", dir=str(base)))
-
-
-def ai_config_from_env() -> OpenCodeConfig:
-    return from_env(dict(os.environ), requested=True)
-
-
-def ai_api_key_from_env() -> str:
-    return os.environ.get("RAKATHON_AI_API_KEY", "").strip()
-
-
-async def start_ai_adapter(config: OpenCodeConfig) -> OpenCodeAdapter:
-    return await OpenCodeAdapter.create(config, api_key=ai_api_key_from_env())
+__all__ = ["ai_config_from_env", "probe_version", "short_runtime", "start_ai_adapter"]
 
 
 async def cmd_demo(runtime_dir: Path) -> int:
@@ -75,9 +58,17 @@ async def cmd_serve(
     if watchdog_interval < 0.1:
         print(json.dumps({"error": "watchdog interval must be >= 0.1"}))
         return 2
-    adapter: OpenCodeAdapter | None = None
+    adapter: AIAdapter | None = None
     ai_mode = "mock"
     kill_file: Path | None = None
+    if ai == "direct":
+        try:
+            adapter = DirectAdapter(DirectHttpTransport(direct_config_from_env()))
+        except (ContractError, TransportError, ValueError):
+            print(json.dumps({"error": "ai_not_configured"}))
+            return 2
+        ai_mode = "direct"
+        kill_file = configured_kill_file()
     if ai == "opencode":
         config = ai_config_from_env()
         if not config.ready:
@@ -250,11 +241,8 @@ async def health_via_config(runtime_dir: Path, tokens: dict[str, str]) -> dict[s
     return out
 
 
-AI_CLIENT_ACTIONS = frozenset({"ai.complete", "ingest"})
-
-
 def client_timeout_for(action: str) -> float:
-    if action in AI_CLIENT_ACTIONS:
+    if action in ("ai.complete", "ingest"):
         return AI_EDGE_TIMEOUT
     return 5.0
 

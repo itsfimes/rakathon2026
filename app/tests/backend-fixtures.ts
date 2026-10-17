@@ -3,7 +3,7 @@ export const sessionResponse = { version: 1, access: 'single-user-development', 
   capabilities: { workspaceRead: true, caseRead: true, tasks: false, vectors: false, ingestion: false, screening: false, assistant: false },
   health: { ipc: 'up', database: 'up' },
 }
-export const complete = (items: unknown[] = []) => ({ status: 'complete', items, serverTotal: items.length as number | null, reason: null as string | null })
+export const complete = (items: unknown[] = []): { status: string; items: unknown[]; serverTotal: number | null; reason: string | null; receivedCount?: number; encounteredCount?: number; pagesFetched?: number } => ({ status: 'complete', items, serverTotal: items.length, reason: null })
 export const unavailableSection = () => ({ status: 'unavailable', items: [] as unknown[], serverTotal: null, reason: 'upstream_unavailable_or_incomplete' })
 export const workspaceResponse = () => ({ version: 1, fetchedAt: fetched,
   patients: Array.from({ length: 6 }, (_, i) => ({ patientId: `synthetic-${i}`, label: i ? `Synthetic Example ${i}` : null, birthDate: null as string | null })),

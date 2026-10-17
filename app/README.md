@@ -37,12 +37,19 @@ opaque session token (HttpOnly cookie) and auth secrets never touch
 unavailable) with no account enumeration, no signup, no password reset and no SSO.
 
 A signed-in user gets an identity bar (`Přihlášeno: jméno.příjmení`, server role,
-`Odhlásit`) above the existing workspace. Clinical reads still return `503`
-until the server's read projection lands, shown honestly as unavailable — never a
-login loop or fake workspace. An HTTP `401` on any clinical read returns to login
-with an expiry notice; `403` keeps the session. Roles come only from the server;
-the role view switch stays presentation-only. Mock mode (`VITE_DATA_MODE=mock`)
-remains explicitly labeled demo and performs no auth requests.
+`Odhlásit`) above the existing workspace. Clinical reads go through the real
+facade (`GET /api/v1/session`, typed `workspace` with coverage/pagination
+counters, exact `cases/{id}` with report hierarchy); the assistant `POST`s the
+exact opt-in preview with its transport binding plus the in-memory `X-CSRF-Token`
+(the browser sets Origin itself, the app never forges it). Partial upstream data
+stays an honest typed `unavailable` coverage envelope — never a login loop, a
+fake workspace or invented counts. An HTTP `401` on any clinical read or
+assistant call returns to login with an expiry notice and clears clinical state;
+`403` keeps the session. The request `role` is only the UI view
+(`koordinator`/`pacient`/`lekar`/`mdt`) and never a server permission; real
+permissions come from the server matrix and the session capability flags. Mock
+mode (`VITE_DATA_MODE=mock`) remains explicitly labeled demo and performs no
+auth requests.
 
 ## Public build-time source settings
 
@@ -107,10 +114,10 @@ Read snapshots are cloned and deeply frozen; nothing is persisted across session
 
 ## Read-only IRIS development adapter
 
-The exact auth HTTP edge contract lives in `../backend/docs/auth.md` (`HTTP edge`
-plus `CLI`). Auth login/session/logout works; authenticated clinical reads return
-`503 not_configured` until the other lane ships its read projection facade
-(`GET /api/v1/session|workspace|cases` stays pending). Start the auth edge separately
+The exact v1 contract lives in `../backend/docs/web.md` (`HTTP edge` plus `CLI`).
+Auth login/session/logout works and the authenticated clinical facade is
+integrated (`GET /api/v1/session|workspace|cases` plus the capability-gated
+assistant `POST`). Start the edge separately
 on loopback port 8765, then:
 
 ```sh
@@ -157,12 +164,13 @@ zero), relative to fetch date. No first Condition becomes a primary cancer diagn
 Source issue/effective dates and exact versions remain distinct; local availability is
 unknown. Missing version is explicitly `unknown`. Fetch time is only a transport time.
 No MDT preparation is invented without meeting metadata, requirements and availability.
-Plain text only: no FHIR HTML, attachment data/URL fetching or remote assistant calls.
+Plain text only: no FHIR HTML, attachment data/URL fetching or raw clinical data in
+assistant calls.
 Patient rendering consumes only its explicit PatientRecord allowlist, including narrow
 section coverage. Clinical revisions are opaque local invalidation tokens.
 
-Assistant and mutations stay unavailable (capabilities false); DemoControls remain mock
-only. Unknown cases return not-found and failures never enable mocks. Without the API
+Assistant stays unavailable unless the session reports the assistant capability;
+DemoControls remain mock only. Unknown cases return not-found and failures never enable mocks. Without the API
 base setting the old zero-request `backend-unconfigured` behavior remains unchanged.
 
 ## Assistant phase one: headless only, not real AI
@@ -172,6 +180,8 @@ base setting the old zero-request `backend-unconfigured` behavior remains unchan
   6,000 output, 32 fields, 320 characters per field, 4,000 aggregate context characters,
   8 in-memory transcript entries). `send(request, AbortSignal)` is explicit and required.
 - `src/data/backend/assistant.ts`: `UnconfiguredAssistant`, unavailable/none, zero requests.
+  `BackendAssistant` posts the exact opt-in preview with its binding to the same-origin
+  facade with the in-memory CSRF header; `401` ends the session, `403` keeps it.
   No SDK, URL, credentials, browser keys, hidden lookup or mock fallback.
 - `src/data/mock/assistant.ts`: exact-prompt scripted demonstration, reachable only through
   the existing mock dynamic import; every reply identifies itself as scripted, not AI.

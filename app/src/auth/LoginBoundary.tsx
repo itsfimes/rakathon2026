@@ -70,6 +70,7 @@ function AuthGate() {
     const controller = new AbortController()
     abortRef.current = controller
     setBoot(createBackendSession(controller.signal, undefined, {
+      csrfToken: () => csrfRef.current,
       onUnauthorized: () => {
         if (genRef.current !== gen) return
         clearClinical()

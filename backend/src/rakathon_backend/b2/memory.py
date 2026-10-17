@@ -86,6 +86,9 @@ class MemoryStorage:
         for item in entries:
             checked.append(_check_tx_entry(item))
         with self._lock:
+            for item, (rtype, rid, _resource, _method, _url) in zip(entries, checked, strict=True):
+                if item["request"].get("ifNoneMatch") == "*" and (rtype, rid) in self.fhir:
+                    raise ContractError(code="import_conflict", message="Resource already exists")
             for rtype, rid, resource, _method, _url in checked:
                 self.fhir[(rtype, rid)] = dict(resource)
             out_entries: list[dict[str, Any]] = []
@@ -107,10 +110,11 @@ class MemoryStorage:
         out: list[dict[str, Any]] = []
         with self._lock:
             items = list(self.fhir.items())
+        effective = {k: v for k, v in params.items() if not k.startswith("_")}
         for (rtype, _rid), resource in items:
             if rtype != resource_type:
                 continue
-            if all(str(resource.get(k, "")) == v for k, v in params.items()):
+            if all(str(resource.get(k, "")) == v for k, v in effective.items()):
                 out.append(dict(resource))
         return out
 

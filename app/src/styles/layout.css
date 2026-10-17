@@ -128,6 +128,7 @@
     .facts > div { grid-template-columns: var(--icon) minmax(0, 1fr); }
     .facts dd { grid-column: 2; }
     .event { grid-template-columns: var(--cal-col-sm) minmax(0, 1fr); padding: var(--s-3); }
+    .event--earlier { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 380px) {
     .roles .segmented__item { padding: 0 var(--s-1); gap: var(--s-1); font-size: var(--fs-xs); }

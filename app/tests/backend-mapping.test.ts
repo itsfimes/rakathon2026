@@ -51,9 +51,28 @@ describe('backend clinical mapping provenance regressions', () => {
     const detail = projectCase(dto)
     const prose = JSON.stringify({ history: detail.patient.record!.history, reports: detail.patient.record!.reports })
     for (const id of ['synthetic-evidence-machine-id', 'synthetic-evidence-labelled-id', 'synthetic-result-machine-id', 'synthetic-result-labelled-id', 'synthetic-author-machine-id', 'synthetic-author-labelled-id']) expect(prose).not.toContain(id)
-    for (const literal of ['Synthetic supplied condition', 'Synthetic evidence finding', 'Synthetic evidence display', 'Synthetic result display',
-      'Synthetic author display', 'Synthetic supplied document description', 'Literal supplied finding mentioning Observation/literal-clinical-text']) expect(prose).toContain(literal)
-    expect(detail.clinical!.domains.imagingProcedures[0]!.value.findings).toContain('Synthetic result display')
+    for (const literal of ['Synthetic supplied condition', 'Synthetic evidence finding', 'Synthetic evidence display',
+      'Synthetic supplied document description', 'Literal supplied finding mentioning Observation/literal-clinical-text']) expect(prose).toContain(literal)
+    // Report metadata (result names, authors) is typed metadata, never folded into the finding text.
+    const [report, document] = detail.clinical!.domains.imagingProcedures
+    expect(report!.value.findings).toBeUndefined()
+    expect(report!.value.conclusion).toContain('Literal supplied finding mentioning Observation/literal-clinical-text')
+    expect(report!.value.meta?.items).toEqual(['Synthetic result display'])
+    expect(document!.value.findings).toBe('Synthetic supplied document description')
+    expect(document!.value.meta?.authors).toEqual(['Synthetic author display'])
+    expect(document!.value.meta?.contentSupplied).toBe(false)
+    expect(JSON.stringify(detail.clinical!.domains.imagingProcedures)).not.toMatch(/synthetic-(result|author)-(machine|labelled)-id/)
+  })
+
+  it('report without conclusion or metadata keeps no invented finding, date or metadata', () => {
+    const raw = caseResponse()
+    raw.sections.diagnosticReports = complete([{ ...resource('DiagnosticReport'), code: { text: 'Synthetic metadata-only report' } }])
+    const report = projectCase(caseDTO(raw, 'synthetic-0')).clinical!.domains.imagingProcedures[0]!
+    expect(report.value.type).toBe('Synthetic metadata-only report')
+    expect(report.value.findings).toBeUndefined()
+    expect(report.value.conclusion).toBeUndefined()
+    expect(report.value.meta).toBeUndefined()
+    expect(report.effective).toEqual({ kind: 'unknown' })
   })
 
   it.each([

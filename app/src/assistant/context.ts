@@ -17,16 +17,17 @@ function documentSummary(document: Pick<CaseDocument, 'kind' | 'state'>): string
 
 /** Only this projection can become the preview AND the wire context. No local identifiers. */
 export function buildAssistantContext(view: ViewId, detail: CaseDetail | null, fresh: boolean): AssistantContext | null {
-  if (!detail || !fresh || !isAssistantRole(view) || !detail.nextStep) return null
+  if (!detail || !fresh || !isAssistantRole(view)) return null
+  if (detail.assistantPreview !== undefined) return detail.assistantPreview[view]?.context ?? null
   const fields: AssistantField[] = []
   const add = (key: AssistantFieldKey, source: AssistantSourceId, value: string | null | undefined) => {
     if (value?.trim()) fields.push(Object.freeze({ key, source, value }))
   }
   if (view === 'koordinator') {
-    add('task-title', 'task', detail.nextStep.title)
-    add('task-organization', 'task', detail.nextStep.owner.organization)
-    add('task-due', 'task', detail.nextStep.dueAt)
-    add('task-acknowledgement', 'task', acknowledgement[detail.nextStep.acknowledgement])
+    add('task-title', 'task', detail.nextStep?.title)
+    add('task-organization', 'task', detail.nextStep?.owner.organization)
+    add('task-due', 'task', detail.nextStep?.dueAt)
+    add('task-acknowledgement', 'task', detail.nextStep ? acknowledgement[detail.nextStep.acknowledgement] : undefined)
     for (const document of detail.documents) add('document-state', 'documents', documentSummary(document))
   } else if (view === 'pacient') {
     add('instruction', 'patient-instruction', detail.patient.currentInstruction)

@@ -51,10 +51,13 @@ the bridge operator enables the insecure-loopback flag; any other
 non-HTTPS base is refused, and TLS verification is never disabled to make
 a remote endpoint pass. Requests accept `application/fhir+json`. Resource types
 and IDs are validated against safe patterns before any path is built, and
-search parameters are typed and allowlisted. The adapter never follows
-absolute paging links: when a search Bundle carries a `next` link the call
-fails with a `truncated` error instead of silently returning a partial
-first page. Reads map 404 to `None`. Writes use idempotent `PUT` with the
+search parameters are typed and allowlisted. The direct FHIR adapter follows
+validated opaque `next` links only within the configured origin and base-path
+boundary, with an initial page size of 50, at most 10 pages and 500 encountered
+entries. Unsafe links and exceeded budgets fail closed rather than returning
+partial clinical items. An optional reported total may be an estimate; completion
+requires a valid terminal page within the budgets, not equality with that total.
+Reads map 404 to `None`. Writes use idempotent `PUT` with the
 resource ID. Transactions post the Bundle unchanged to the base URL so the
 server executes it atomically, and every entry of the transaction response
 is inspected for error status or error `OperationOutcome`. Failures return

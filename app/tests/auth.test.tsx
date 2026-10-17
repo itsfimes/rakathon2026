@@ -115,7 +115,7 @@ describe('login gate', () => {
     expect(screen.getByRole('button', { name: 'Odhlásit' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 2, name: 'Přihlášení' })).toBeNull()
     expect(await screen.findByText('Data se nepodařilo načíst')).toBeInTheDocument()
-    expect(screen.getByText(/přihlášení funguje, klinická data zatím nejsou připojena/)).toBeInTheDocument()
+    expect(screen.getByText(/přihlášení ověřuje server/)).toBeInTheDocument()
     expect(fetcher.mock.calls.map(call => String(call[0]))).toContain('/api/v1/auth/session')
   })
   it('bad credentials show a generic error without enumeration', async () => {

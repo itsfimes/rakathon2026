@@ -143,7 +143,7 @@ def test_encrypted_roundtrip_over_loopback(tmp_path: Path) -> None:
             assert client.tasks_write(task)["id"] == "t1"
             assert len(client.tasks_read(None)) == 1
             assert client.tasks_ack("t1", "nurse")["status"] == "ACKED"
-            resource = {"resourceType": "Patient", "id": "p1", "name": "Anon"}
+            resource = {"resourceType": "Patient", "id": "p1", "name": [{"text": "Anon"}]}
             assert client.fhir_write(resource)["id"] == "p1"
             assert client.fhir_read("Patient", "p1") is not None
             assert client.fhir_read("Patient", "missing") is None

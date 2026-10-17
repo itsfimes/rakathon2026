@@ -7,9 +7,31 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from rakathon_backend.common.collection import checked_metadata
+from rakathon_backend.common.errors import AuthError, TransportError
 
-def frame_error(code: str, message: str) -> bytes:
-    return (json.dumps({"error": {"code": code, "message": message}}) + "\n").encode()
+
+def frame_error(code: str, message: str, metadata: dict[str, Any] | None = None) -> bytes:
+    detail = {
+        "code": code,
+        "message": message,
+        **({"metadata": checked_metadata(metadata)} if metadata else {}),
+    }
+    return (json.dumps({"error": detail}) + "\n").encode()
+
+
+def raise_frame_error(detail: Any) -> None:
+    value = detail if isinstance(detail, dict) else {}
+    code, message = (
+        str(value.get("code", "remote_error")),
+        str(value.get("message", "remote call failed")),
+    )
+    try:
+        metadata = checked_metadata(value.get("metadata", {}))
+    except ValueError as exc:
+        raise TransportError(code="bad_frame", message="Invalid error metadata") from exc
+    cls = AuthError if code in ("auth_failed", "spoofed_source") else TransportError
+    raise cls(code=code, message=message, metadata=metadata)
 
 
 def lookup_service(registry: Mapping[str, str], token: Any) -> str | None:

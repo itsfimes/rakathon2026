@@ -14,12 +14,12 @@ from rakathon_backend.common.framing import (
     frame_error,
     is_socket,
     lookup_service,
+    raise_frame_error,
 )
 from rakathon_backend.common.health import socket_present
 
 MAX_FRAME_BYTES = 1_048_576
 DEFAULT_TIMEOUT = 5.0
-
 Handler = Callable[[Envelope], Awaitable[Envelope]]
 
 
@@ -155,6 +155,10 @@ class UnixJsonServer:
                 writer.write(frame_error("target_mismatch", "request target mismatch"))
                 await writer.drain()
                 return
+            if request.source == "frontend:web-assistant" and request.action != "ai.complete":
+                writer.write(frame_error("auth_failed", "assistant action is not permitted"))
+                await writer.drain()
+                return
             if request.action == "health":
                 reply = request.reply(
                     source=self._service_name,
@@ -177,7 +181,7 @@ class UnixJsonServer:
                 await writer.drain()
                 return
             except (ContractError, AuthError, TransportError) as exc:
-                writer.write(frame_error(exc.code, exc.message))
+                writer.write(frame_error(exc.code, exc.message, exc.metadata))
                 await writer.drain()
                 return
             except Exception:
@@ -285,20 +289,7 @@ class UnixJsonClient:
             if not isinstance(response, dict):
                 raise TransportError(code="bad_frame", message="response must be a JSON object")
             if "error" in response:
-                detail = response["error"]
-                code = (
-                    detail.get("code", "remote_error")
-                    if isinstance(detail, dict)
-                    else "remote_error"
-                )
-                message = (
-                    detail.get("message", "remote call failed")
-                    if isinstance(detail, dict)
-                    else "remote call failed"
-                )
-                if code == "auth_failed" or code == "spoofed_source":
-                    raise AuthError(code=str(code), message=str(message))
-                raise TransportError(code=str(code), message=str(message))
+                raise_frame_error(response["error"])
             if "envelope" not in response or not isinstance(response["envelope"], dict):
                 raise TransportError(code="bad_frame", message="response missing envelope")
             reply = Envelope.from_dict(response["envelope"])

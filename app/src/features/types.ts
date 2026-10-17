@@ -12,6 +12,7 @@ export interface RoleViewProps {
   readonly onNavigate?: (route: Route) => void
   /** Matching current resource revision, with no local mutation in flight. */
   readonly detailFresh?: boolean
+  readonly authed?: boolean | undefined
 }
 
 /** Routing seams handed to the two clinician roles (list ⇄ detail). App stays the only history owner. */

@@ -74,7 +74,7 @@ def test_fhir_traversal_never_hits_network() -> None:
     assert calls == []
 
 
-def test_fhir_search_parses_and_rejects_paging() -> None:
+def test_fhir_search_rejects_unsafe_paging() -> None:
     bundle = {
         "resourceType": "Bundle",
         "type": "searchset",
@@ -84,7 +84,7 @@ def test_fhir_search_parses_and_rejects_paging() -> None:
     adapter = _fhir(lambda request: httpx.Response(200, json=bundle))
     with pytest.raises(ContractError) as excinfo:
         adapter.search("Patient", {})
-    assert excinfo.value.code == "truncated"
+    assert excinfo.value.code == "unsafe_paging_link"
 
 
 def test_fhir_write_put_idempotent() -> None:
@@ -94,9 +94,13 @@ def test_fhir_write_put_idempotent() -> None:
         seen["method"] = request.method
         seen["path"] = request.url.path
         seen["ctype"] = request.headers.get("content-type", "")
-        return httpx.Response(200, json={"resourceType": "Task", "id": "t1"})
+        return httpx.Response(
+            200, json={"resourceType": "Task", "id": "t1", "status": "requested", "intent": "order"}
+        )
 
-    stored = _fhir(handler).write({"resourceType": "Task", "id": "t1"})
+    stored = _fhir(handler).write(
+        {"resourceType": "Task", "id": "t1", "status": "requested", "intent": "order"}
+    )
     assert stored["id"] == "t1"
     assert seen == {
         "method": "PUT",

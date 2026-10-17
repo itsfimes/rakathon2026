@@ -166,10 +166,10 @@ probed `tasks.read`. `web/edge.py` now exposes `B4ActionClient` with
 `request_kind(action)`, so caller authority fields stay rejected, the verified
 identity is server-resolved only, and auth, token, source, and correlation are
 checked by the UDS layer. No API path maps to an action and no hidden probe
-runs. `AuthMiddleware.protect` remains the only composition callback, the
-default clinical answer stays 503 `not_configured` with no B4 network call
-when unconfigured or unauthenticated, and no clinical GET DTO, session,
-workspace, or cases facade is implemented here.
+runs. `AuthMiddleware.protect` remains the only composition callback; the
+former default clinical 503 is superseded by the merged AuthBridge facade
+(see Merge integration below), and unauthenticated clinical traffic stays
+401-first with no B4 network call.
 
 ## Trusted web identity
 `web:auth` tokens are minted only by `fresh_tokens_with_auth` and live server-side.
@@ -202,8 +202,9 @@ idempotently without requiring re-revocation.
 Bad credentials map to generic 401 `invalid_credentials`, including malformed
 usernames at this layer (provisioning stays strict), limits to 429
 with `Retry-After`, missing backends to 503. Error bodies never carry names,
-hashes, tokens, or request bodies. Authenticated clinical traffic defaults
-to 503 `not_configured` until the clinical read facade lands. Unauthenticated
+hashes, tokens, or request bodies. Authenticated clinical traffic is served
+by the merged AuthBridge facade (see Merge integration below).
+Unauthenticated
 clinical traffic is denied 401 before any routing or downstream call.
 Writes need exact `X-CSRF-Token` plus Origin. `GET /health` is proxy-gated
 liveness with no identity or database claims. Body cap is 16 KiB with strict
@@ -240,8 +241,9 @@ Login with `X-Rakathon-Proxy-Key: <proxy.key contents>` from `proxy.key`,
 exact `Origin`, and `X-Rakathon-Auth: 1`. The proxy key never ships to browsers.
 
 ## Phase B limits
-Auth-only demo. Protected clinical routes answer 503 until the other lane
-ships its read projection facade and `GET /api/v1/session|workspace|cases`.
+Auth-only demo. Protected clinical routes are now served through the merged
+AuthBridge facade (see Merge integration below); the prior 503-until-facade
+note is superseded.
 No OIDC flow is claimed. No browser credential storage is used.
 Upstream Host must exactly match the configured listener authority (set from
 the server builder) or an explicit allowlist entry; wrong ports and aliases
@@ -276,3 +278,22 @@ seven-file mock-exclusion verification PASS.
 Known limits: no live IRIS proof (offline fakes only), demo SQLite needs a fresh
 `auth-init` after the slot-schema change (no auto-migration of live agent DBs), and a
 crash between account and global reservations may hold one account slot until its TTL.
+
+## Merge integration (authentication lane)
+Clinical API is integrated behind `AuthHTTPRouter` via `web/auth_bridge.py`.
+`GET /api/v1/session|workspace|cases/{id}` and `POST /api/v1/assistant` map
+to the versioned `WebService` shapes with sanitized `WebError` mapping and
+404/405 defaults; no fake 200/503. Reads use per-request identity-bound
+`web:auth` envelopes with opaque B7 user IDs, never shared `viewer`.
+`POST /api/v1/assistant` accepts the UI view `role` (`koordinator|pacient|
+lekar|mdt`) only on that route; `userId`, `user_id`, `username` stay rejected
+and identity comes from B7 alone. Human `ai.ask` is authorized per verified
+user via `web:auth` before any AI; `viewer` gets 403. `web-assistant` keeps
+the literal service-principal `ai.complete` path with B4/IPC clamps.
+Snapshot bindings use a per-boot 32B root derived per user ID plus auth
+version (TTL 300, restart-invalidated) with a global single-AI gate (429).
+`auth-serve` defaults to mock AI off; `--assistant` plus provider env, auth
+scheme, timeout<=60, consent, and kill gates enable direct mode only.
+Live IRIS is not verified in this lane; no MFA/SSO or production claims.
+Backend gates: 783 pytest PASS with `-W error`, ruff clean, mypy clean.
+Final designer plus closure reviews are PENDING on the merged state.

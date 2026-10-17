@@ -298,7 +298,13 @@ class AuthHTTPRouter:
             parsed = self._parse_json_body(headers, body) if body else {}
             if body and parsed is None:
                 return (400, {}, _safe_error("bad_request"))
-            if isinstance(parsed, dict) and any(
+            is_assistant_post = method == "POST" and path == "/api/v1/assistant"
+            if is_assistant_post:
+                if isinstance(parsed, dict) and any(
+                    k in parsed for k in ("userId", "user_id", "username")
+                ):
+                    return (400, {}, _safe_error("bad_request"))
+            elif isinstance(parsed, dict) and any(
                 k in parsed for k in ("userId", "user_id", "role", "username")
             ):
                 return (400, {}, _safe_error("bad_request"))

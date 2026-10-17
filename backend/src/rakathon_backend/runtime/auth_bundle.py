@@ -11,6 +11,7 @@ from typing import Any
 from rakathon_backend.b2.auth.keys import KeySet, load_key_file
 from rakathon_backend.b2.auth.protocol import PersistentAuthStore
 from rakathon_backend.b2.auth.sqlite_store import SQLiteDemoAuthStore
+from rakathon_backend.b5.gateway import AIAdapter, KillSwitch
 from rakathon_backend.b7.provider import LocalPasswordProvider
 from rakathon_backend.b7.service import AuthService
 from rakathon_backend.common.errors import ContractError
@@ -109,6 +110,8 @@ def load_auth_service(
 
 def role_resolver_for(service: AuthService) -> Callable[[str], str | None]:
     def resolve(user_id: str) -> str | None:
+        if user_id == "web-assistant":
+            return "web-assistant"
         return service.role_for_user(user_id)
 
     return resolve
@@ -152,6 +155,10 @@ def build_auth_app(
     store: Any | None = None,
     mode: str = "mock",
     screening: Any | None = None,
+    ai_adapter: AIAdapter | None = None,
+    ai_mode: str = "mock",
+    kill_file: Path | str | None = None,
+    kill_switch: KillSwitch | None = None,
 ) -> BackendApp:
     if AUTH_SERVICE_NAME not in tokens or WEB_SOURCE not in tokens:
         raise ContractError(code="not_configured", message="auth tokens are missing")
@@ -162,4 +169,8 @@ def build_auth_app(
         mode=mode,
         screening=screening,
         auth=make_bundle(service),
+        ai_adapter=ai_adapter,
+        ai_mode=ai_mode,
+        kill_file=kill_file,
+        kill_switch=kill_switch,
     )

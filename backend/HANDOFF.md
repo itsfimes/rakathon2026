@@ -195,3 +195,13 @@
 - Live IRIS FHIR at `https://iris.racek.xyz/fhir/r4`: authenticated read/create/update verified with one synthetic Patient, deleted afterward. SQL still needs a separate superserver connection and is unverified live.
 - `fhir.search` authorization mismatch: FIXED by B6 canonicalizing to `fhir.read` before checking permissions; real-app regression verified.
 - Limits: mock default, replay process-local restart-unsafe, no true anonymization, B6 mock, no OCR, no PDF ingest, health = `authenticated-ipc-liveness`, deps not checked.
+
+## Merge integration (authentication lane)
+Authenticated clinical facade is integrated: `web/auth_bridge.py` serves
+`GET session|workspace|cases` plus `POST assistant` behind `AuthHTTPRouter`
+with B7 identity, per-request `web:auth` reads, human `ai.ask` gate, view-role
+only body, stable per-user bindings, and single-AI 429 gate. Former default
+clinical 503 notes above are superseded. `auth-serve --assistant` gates direct
+AI; default remains mock off with no network AI. Live IRIS not verified here;
+no MFA/SSO/production claims. Backend: 783 pytest `-W error` PASS, ruff/mypy
+clean. Designer plus final closure reviews PENDING.

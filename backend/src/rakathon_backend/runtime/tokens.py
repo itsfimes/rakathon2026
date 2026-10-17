@@ -3,9 +3,9 @@ from __future__ import annotations
 import secrets
 from typing import Any
 
-FRONTEND_USERS = ("admin", "coordinator", "clinician", "viewer", "watchdog")
+FRONTEND_USERS = ("admin", "coordinator", "clinician", "viewer", "watchdog", "web-assistant")
 SERVICES = ("b1", "b2", "b3", "b4", "b5", "b6")
-AI_MODES = ("mock", "opencode")
+AI_MODES = ("mock", "opencode", "direct")
 MIN_WATCHDOG_INTERVAL = 0.1
 MAX_WATCHDOG_INTERVAL = 3600.0
 KILL_POLL_SECONDS = 1.0

@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any, Protocol
 
 from rakathon_backend.b5.mock import mock_complete_bytes, mock_translate_bytes
+from rakathon_backend.b5.safety import check_ai_kill
 from rakathon_backend.common.blob_store import BlobStore
 from rakathon_backend.common.contracts import DataKind, Envelope
 from rakathon_backend.common.errors import AuthError, ContractError, TransportError
@@ -82,6 +84,7 @@ class B5Gateway:
         switch: KillSwitch | None = None,
         mode: str = "mock",
         timeout: float = DEFAULT_TIMEOUT,
+        kill_file: Path | None = None,
     ) -> None:
         if timeout <= 0:
             raise ValueError("gateway timeout must be positive")
@@ -91,6 +94,7 @@ class B5Gateway:
         self._switch = switch or KillSwitch()
         self._mode = mode
         self._timeout = timeout
+        self._kill_file = kill_file
         self._active: set[asyncio.Task[Any]] = set()
 
     @property
@@ -169,17 +173,25 @@ class B5Gateway:
                 record = self._blob.get(str(ref))
             except Exception as exc:
                 raise ContractError(code="blob_not_found", message="blob unknown") from exc
+            self._check_dispatch()
             return await self._adapter.translate(record.data, record.content_type)
         prompt = payload.get("prompt", "")
         if isinstance(prompt, str) and prompt.strip():
+            self._check_dispatch()
             return await self._adapter.complete(prompt.encode(), "text/plain")
         if has_ref:
             try:
                 record = self._blob.get(str(ref))
             except Exception as exc:
                 raise ContractError(code="blob_not_found", message="blob unknown") from exc
+            self._check_dispatch()
             return await self._adapter.complete(record.data, record.content_type)
         raise ContractError(code="bad_payload", message="prompt or bytesRef is required")
+
+    def _check_dispatch(self) -> None:
+        self._switch.check(mode=self._mode)
+        if self._mode != "mock":
+            check_ai_kill(self._kill_file)
 
 
 def make_handler(gateway: B5Gateway) -> Callable[[Envelope], Awaitable[Envelope]]:

@@ -5,6 +5,7 @@ from rakathon_backend.b7.client import (
     AuthSessionPort,
     B7SocketClient,
 )
+from rakathon_backend.web.auth_bridge import AuthBridge
 from rakathon_backend.web.config import WebConfig, load_proxy_key
 from rakathon_backend.web.edge import (
     AuthMiddleware,
@@ -20,6 +21,7 @@ from rakathon_backend.web.router import (
 )
 
 __all__ = [
+    "AuthBridge",
     "AuthHTTPRouter",
     "AuthMiddleware",
     "AuthSessionPort",
