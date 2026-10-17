@@ -6,7 +6,6 @@ interface PanelProps {
   readonly id: string
   readonly title: ReactNode
   readonly icon?: IconName
-  readonly meta?: ReactNode
   readonly aside?: ReactNode
   readonly as?: 'section' | 'article'
   /** Lets code move focus to the title (tabIndex -1), e.g. after selecting a row on a phone. */
@@ -14,8 +13,8 @@ interface PanelProps {
   readonly children: ReactNode
 }
 
-/** Bordered section with a sunken head (title, optional meta line and trailing tag). */
-export function Panel({ id, title, icon, meta, aside, as: Tag = 'section', focusableTitle = false, children }: PanelProps) {
+/** Bordered section with a sunken head (title and optional trailing tag). */
+export function Panel({ id, title, icon, aside, as: Tag = 'section', focusableTitle = false, children }: PanelProps) {
   return (
     <Tag className="panel" aria-labelledby={id}>
       <div className="panel__head">

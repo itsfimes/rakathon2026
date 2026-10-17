@@ -6,7 +6,6 @@ import type { CaseDocument, SourceField } from '../../data/contracts'
 import { sourceLine } from '../../lib/format'
 import type { DemoActions } from '../../hooks/useDemoActions'
 import { REVIEWED_LOCAL, sourceFieldLabel } from '../../lib/labels'
-import { UnavailableNote } from '../shared/DemoNote'
 import { ScopedDisclosure } from '../shared/ScopedDisclosure'
 
 /** Value and certainty stay in the table; the literal excerpt and its provenance open on demand.
@@ -43,8 +42,7 @@ function reviewedDocuments(fields: readonly SourceField[], documents: readonly C
 export function SourceReviewPanel({ fields, documents, actions }: { readonly fields: readonly SourceField[]; readonly documents: readonly CaseDocument[]; readonly actions: DemoActions }) {
   const reviewable = actions.available ? reviewedDocuments(fields, documents) : []
   return (
-    <Panel id="t-src" icon="file" title="Výpis z dokumentace ke kontrole"
-      meta="Žádná umělá inteligence nic nezpracovává. Každý údaj potvrzuje lékař.">
+    <Panel id="t-src" icon="file" title="Výpis z dokumentace ke kontrole">
       <Table labelledBy="t-src" columns={['Údaj', 'Hodnota a výňatek', 'Stav']}>
         {fields.map(field => (
           <tr key={field.id}>
@@ -77,10 +75,9 @@ export function SourceReviewPanel({ fields, documents, actions }: { readonly fie
           </ul>
         </section>}
         <ButtonRow>
-          <Button disabled aria-describedby="note-l">Potvrdit výpis</Button>
-          <Button variant="secondary" disabled aria-describedby="note-l">Upravit</Button>
+          <Button disabled>Potvrdit výpis</Button>
+          <Button variant="secondary" disabled>Upravit</Button>
         </ButtonRow>
-        <UnavailableNote id="note-l" />
       </PanelBody>
     </Panel>
   )

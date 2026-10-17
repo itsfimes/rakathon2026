@@ -29,7 +29,6 @@ function DueDate({ due, asOf }: { readonly due: string; readonly asOf: string | 
 export function DoctorCaseTable({ labelledBy, queue, onNavigate, asOf }: DoctorCaseTableProps) {
   return (
     <Table labelledBy={labelledBy}
-      caption={queue.every(item => item.nextStep === null) ? 'Pořadí převzaté ze zdroje dat.' : 'Pořadí převzaté ze sdílené ukázkové fronty.'}
       columns={['Pacient', 'Další krok v případu · kdo', 'Termín kroku', 'Úsek']}>
       {queue.map(item => {
         const route: Route = { view: 'lekar', page: 'detail', caseId: item.caseId }

@@ -88,8 +88,7 @@ function Preparation({ prep }: { readonly prep: MdtPreparation }) {
         <ul className="plain-list">{prep.limitations.map(item => <li key={item}>{item}</li>)}</ul>
       </Notice>
       <div className="split">
-        <Panel id="t-mdt-req" icon="file" title={<>Požadované podklady <Tag label={COMPLETENESS[counts.completeness]} /></>}
-          meta={counts.total === 0 ? 'Požadavky nejsou zadány, úplnost proto nelze potvrdit.' : `Doloženo ${counts.available} z ${counts.total} · chybí ${counts.missing} · nejisté ${counts.uncertain}. Sada požadavků je ukázková, ne norma.`}>
+        <Panel id="t-mdt-req" icon="file" title={<>Požadované podklady <Tag label={COMPLETENESS[counts.completeness]} /></>}>
           <PanelBody>
             {prep.documents.length > 0 && <Cells states={prep.documents.map(document => document.state)} />}
             <ul className="req-list">
@@ -110,7 +109,7 @@ function Preparation({ prep }: { readonly prep: MdtPreparation }) {
           <Panel id="t-mdt-task" icon="flag" title="Úkoly a termíny doložené před poradou">
             <PanelBody><PlanFacts facts={prep.taskPlan} sources={prep.sources} empty="Žádný doložený úkol ani termín." /></PanelBody>
           </Panel>
-          <Panel id="t-mdt-excl" icon="lock" title={`Vyřazeno z přípravy: ${prep.exclusions.length}`} meta="Jen počty a důvody. Obsah vyřazených položek se zde nezobrazuje.">
+          <Panel id="t-mdt-excl" icon="lock" title={`Vyřazeno z přípravy: ${prep.exclusions.length}`}>
             <PanelBody>
               {reasons.size === 0 ? <p className="placeholder-text">Nic nebylo vyřazeno.</p>
                 : <ul className="plain-list">{[...reasons].map(([reason, count]) => <li key={reason}>{count} × {EXCLUSION_TEXT[reason]}</li>)}</ul>}
@@ -156,7 +155,7 @@ export function MdtView({ workspace, detail, route, onNavigate, onReturn }: MdtV
   if (route.page === 'list' || (route.page !== 'detail' && route.page !== 'invalid-detail')) {
     return (
       <>
-        <ViewHead id="t-mdt" icon="team" title="MDT: pacienti pro MDT" lead="Případy dostupné ze zdroje dat. Nejde o program porady ani o potvrzené zařazení na poradu." />
+        <ViewHead id="t-mdt" icon="team" title="MDT: pacienti pro MDT" />
         {workspace.status === 'ready' ? (
           workspace.value.queue.length === 0
             ? <EmptyState title="Žádné případy" text="Zdroj dat teď nenabízí žádný případ." />
@@ -187,7 +186,7 @@ export function MdtView({ workspace, detail, route, onNavigate, onReturn }: MdtV
   return (
     <>
       <BackToList role="mdt" label="Zpět na pacienty pro MDT" onReturn={onReturn} />
-      <ViewHead id="t-mdt" icon="team" title={title} lead="Závěr finalizuje předseda porady, ne systém." />
+      <ViewHead id="t-mdt" icon="team" title={title} />
       <MdtNav caseId={caseId} current={section} onNavigate={onNavigate} />
       <CaseGate workspace={workspace} detail={matching}>
         {value => (

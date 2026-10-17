@@ -43,7 +43,7 @@ interface PanelProps<T> { readonly facts: readonly ClinicalFact<T>[]; readonly s
 
 function OncologyPanel({ facts, sources, id }: PanelProps<ClinicalDomains['oncologyHistology'][number]['value']>) {
   return (
-    <Panel id={id} icon="file" title="Onkologie a histologie" meta="">
+    <Panel id={id} icon="file" title="Onkologie a histologie">
       <PanelBody>
         {none(facts.length, 'Žádný onkologický ani histologický údaj není v záznamu.')}
         <FactGroups facts={facts} render={fact => {
@@ -68,7 +68,7 @@ function OncologyPanel({ facts, sources, id }: PanelProps<ClinicalDomains['oncol
 
 function ImagingPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDomains['imagingProcedures'][number]['value']>) {
   return (
-    <Panel id={id} icon="eye" title="Zprávy z vyšetření a výkony" meta="">
+    <Panel id={id} icon="eye" title="Zprávy z vyšetření a výkony">
       <PanelBody>
         {none(facts.length, unavailable ? 'Zdroj zpráv nebo dokumentů není dostupný.' : 'Žádná zpráva z vyšetření ani výkonu není v záznamu.')}
         <FactGroups facts={facts} budget={2} timeLine={fact => `Datum vyšetření: ${clinicalTimeText(fact.value.date ?? fact.effective)}`} render={fact => {
@@ -97,7 +97,7 @@ function ImagingPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDo
 
 function LabsPanel({ facts, sources, id, unavailable }: PanelProps<LabPayload>) {
   return (
-    <Panel id={id} icon="file" title="Laboratoř" meta="">
+    <Panel id={id} icon="file" title="Laboratoř">
       {facts.length === 0 ? <PanelBody>{none(0, unavailable ? 'Laboratorní výsledky nejsou dostupné — zdroj pozorování se nepodařilo načíst.' : 'Žádný laboratorní výsledek není v záznamu.')}</PanelBody>
         : <LabTable facts={facts} sources={sources} labelledBy={id} />}
     </Panel>
@@ -127,7 +127,7 @@ function MedicationsPanel({ facts, sources, id }: PanelProps<MedicationPayload>)
     </FactBlock>
   )
   return (
-    <Panel id={id} icon="file" title="Léky" meta="">
+    <Panel id={id} icon="file" title="Léky">
       <PanelBody>
         {none(facts.length, 'Žádný lékový záznam není v záznamu.')}
         {conflicted.length > 0 && (
@@ -162,7 +162,7 @@ function HistoryPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDo
     </FactBlock>
   )
   return (
-		<Panel id={id} icon="help" title="Anamnéza a alergie" meta="">
+		<Panel id={id} icon="help" title="Anamnéza a alergie">
       <PanelBody>
         <section className="record-group" aria-labelledby={`${id}-all`}>
           <h3 className="record-group__title" id={`${id}-all`}>Alergie</h3>
@@ -179,7 +179,7 @@ function HistoryPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDo
 
 function SymptomsPanel({ facts, sources, id }: PanelProps<ClinicalDomains['symptoms'][number]['value']>) {
   return (
-    <Panel id={id} icon="person" title="Příznaky" meta="">
+    <Panel id={id} icon="person" title="Příznaky">
       <PanelBody>
         {none(facts.length, 'Žádné příznaky nejsou v záznamu.')}
         <FactGroups facts={facts} timeLine={fact => `Začátek: ${clinicalTimeText(fact.value.onset ?? fact.effective)}`} render={fact => {
@@ -201,7 +201,7 @@ function SymptomsPanel({ facts, sources, id }: PanelProps<ClinicalDomains['sympt
 
 function MeasurementsPanel({ facts, sources, id, unavailable }: PanelProps<ClinicalDomains['measurements'][number]['value']>) {
   return (
-    <Panel id={id} icon="calendar" title="Měření" meta="">
+    <Panel id={id} icon="calendar" title="Měření">
       {facts.length === 0 ? <PanelBody>{none(0, unavailable ? 'Měření nejsou dostupná — zdroj pozorování se nepodařilo načíst.' : 'Žádné měření není v záznamu.')}</PanelBody>
         : <MeasurementTable facts={facts} sources={sources} labelledBy={id} />}
     </Panel>

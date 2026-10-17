@@ -8,23 +8,14 @@ import { Icon } from '../../icons/Icon'
 import { formatDate } from '../../lib/format'
 import { DocumentEvidence } from '../shared/DocumentEvidence'
 import { ScopedDisclosure } from '../shared/ScopedDisclosure'
-import { UnavailableNote } from '../shared/DemoNote'
 import { TaskFacts } from '../shared/TaskFacts'
-
-/** Counts of documents that still need attention; plain tallies of the supplied states, no inference. */
-function documentSummary(documents: CaseDetail['documents']): string {
-  const missing = documents.filter(document => document.state === 'missing').length
-  const uncertain = documents.filter(document => document.state === 'uncertain').length
-  const parts = [missing > 0 ? `chybí ${missing}` : '', uncertain > 0 ? `ověřit ${uncertain}` : ''].filter(Boolean)
-  return parts.length > 0 ? parts.join(' · ') : documents.length ? 'vše k dispozici' : 'údaje o podkladech neuvedeny'
-}
 
 /** Case page body: the current task first, then its documents, then the patient's phase overview. */
 export function CaseDetailPanel({ detail, actions }: { readonly detail: CaseDetail; readonly actions: DemoActions }) {
   const { identity, nextStep } = detail
   const canAccept = nextStep && actions.available && (nextStep.acknowledgement === 'pending' || nextStep.acknowledgement === 'new')
   return (
-    <Panel as="article" id="t-case" icon="queue" title="Proces případu" meta="">
+    <Panel as="article" id="t-case" icon="queue" title="Proces případu">
       <PanelBody className="case">
         <section className="case-task" aria-labelledby="ns-k">
           <h3 className="label case-task__label"><Icon name="arrow" small />Další krok</h3>
@@ -60,10 +51,9 @@ export function CaseDetailPanel({ detail, actions }: { readonly detail: CaseDeta
         <section className="case-unavailable" aria-labelledby="t-case-unavailable">
           <h3 className="label" id="t-case-unavailable">Komunikace</h3>
           <ButtonRow>
-            <Button variant="secondary" disabled aria-describedby="note-k">Urgovat vlastníka kroku</Button>
-            <Button variant="secondary" disabled aria-describedby="note-k">Informovat odesílajícího lékaře</Button>
+            <Button variant="secondary" disabled>Urgovat vlastníka kroku</Button>
+            <Button variant="secondary" disabled>Informovat odesílajícího lékaře</Button>
           </ButtonRow>
-          <UnavailableNote/>
         </section>
       </PanelBody>
     </Panel>

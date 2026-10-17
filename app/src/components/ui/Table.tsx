@@ -3,12 +3,11 @@ import type { ReactNode } from 'react'
 interface TableProps {
   readonly labelledBy: string
   readonly columns: readonly string[]
-  readonly caption?: ReactNode
   readonly children: ReactNode
 }
 
 /** Scrollable data table that stacks into label/value rows on phones (labels via StackCell). */
-export function Table({ labelledBy, columns, caption, children }: TableProps) {
+export function Table({ labelledBy, columns, children }: TableProps) {
   return (
     <div className="table-wrap" role="region" aria-labelledby={labelledBy} tabIndex={0}>
       <table className="table table--stack">

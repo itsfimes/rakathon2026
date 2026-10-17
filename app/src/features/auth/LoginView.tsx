@@ -80,7 +80,7 @@ export function LoginView({ initialUsername, notice, problem, pending, disabled,
           </PanelBody>
         </Panel>
       )}
-      <Panel id="auth-title" title="Přihlášení" icon="person" meta="Přístup ke Atlasu">
+      <Panel id="auth-title" title="Přihlášení" icon="person">
         <PanelBody>
           {notice && <Notice tone="info" icon="info" title="Oznámení" role="status"><p>{notice}</p></Notice>}
           {problem && !pending && (

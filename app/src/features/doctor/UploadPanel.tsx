@@ -121,7 +121,7 @@ export function UploadPanel({ capability, caseId, mockMode }: UploadPanelProps) 
   }
 
   return (
-    <Panel id="t-upload" icon="file" title="Nahrání podkladu" meta="Jeden soubor po druhém, originál zůstává trvale uložený.">
+    <Panel id="t-upload" icon="file" title="Nahrání podkladu">
       <PanelBody>
         {disabledReason && (
           <p className="notice"><Icon name="lock" /><span>{disabledReason}</span></p>
@@ -130,8 +130,6 @@ export function UploadPanel({ capability, caseId, mockMode }: UploadPanelProps) 
           <p className="notice notice--info"><Icon name="info" /><span><strong>Server nemá klíč k umělé inteligenci.</strong> Soubor se bezpečně uloží a výsledek připraví ke kontrole člověkem.</span></p>
         )}
         {(enabled || disabledReason) && (
-          // The whole zone is the label of the visually hidden native input: click/tap anywhere opens the picker,
-          // keyboard focus lands on the input and is drawn on the visible "Vybrat soubory" button.
           <label className={`upload-drop${over ? ' upload-drop--over' : ''}${enabled ? '' : ' upload-drop--off'}`}
             onDragOver={event => { event.preventDefault(); if (enabled) setOver(true) }}
             onDragLeave={() => setOver(false)} onDrop={onDrop}>

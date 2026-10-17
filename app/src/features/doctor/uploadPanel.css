@@ -1,5 +1,4 @@
 @layer components {
-  /* Dropzone: the whole area is the label of a visually hidden native input. Nothing visible comes from the browser. */
   .upload-drop {
     position: relative;
     display: grid;
@@ -30,7 +29,6 @@
   .upload-drop__btn { margin-block: var(--s-1); pointer-events: none; }
   .upload-drop__rules { font-size: var(--fs-sm); color: var(--c-ink-muted); }
   .upload-drop__hint { display: inline-flex; align-items: center; gap: var(--s-1); font-size: var(--fs-xs); color: var(--c-ink-muted); }
-  /* Native input: out of sight, still focusable and announced with its own name and descriptions. */
   .upload-drop__input {
     position: absolute;
     width: 1px;

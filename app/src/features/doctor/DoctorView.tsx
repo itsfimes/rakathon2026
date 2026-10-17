@@ -22,15 +22,12 @@ type DoctorViewProps = RoleViewProps & ClinicianNavigation & {
 }
 
 /** Referring doctor: a neutral demo case list, then one case per page (referral and next step first, extraction review after). */
-export function DoctorView({ workspace, detail, actions, route, onNavigate, onReturn, authed, uploads, uploadCaseId, mockMode }: DoctorViewProps) {
+export function DoctorView({ workspace, detail, actions, route, onNavigate, onReturn, uploads, uploadCaseId, mockMode }: DoctorViewProps) {
   const backend = workspace.status === 'ready' && workspace.value.metadata.origin === 'backend'
-  const listLead = !backend ? 'Případy ze sdílené ukázkové fronty. Nejde o seznam vašich pacientů ani o přihlášení.'
-    : authed ? '.'
-    : ''
   if (route.page === 'list') {
     return (
       <>
-        <ViewHead id="t-lekar" icon="steth" title={backend ? 'Lékař: seznam případů' : 'Lékař: ukázkový seznam případů'} lead={listLead} />
+        <ViewHead id="t-lekar" icon="steth" title={backend ? 'Lékař: seznam případů' : 'Lékař: ukázkový seznam případů'} />
         {workspace.status === 'ready' ? (
           workspace.value.queue.length === 0
             ? <EmptyState title="Žádné případy" text={backend ? 'Zdroj dat nenabízí žádný případ.' : 'V ukázce teď není žádný případ.'} />
@@ -43,12 +40,11 @@ export function DoctorView({ workspace, detail, actions, route, onNavigate, onRe
       </>
     )
   }
-  const lead = route.page === 'detail' && detail.status === 'ready' ? detail.value.identity.referrer?.viewLabel : undefined
   const section = route.page === 'detail' && route.view !== 'mdt' ? route.section ?? 'overview' : 'overview'
   return (
     <>
       <BackToList role="lekar" label="Zpět na seznam případů" onReturn={onReturn} />
-      <ViewHead id="t-lekar" icon="steth" title={backend ? 'Lékař: případ' : 'Lékař: odeslaný pacient'} lead={lead} />
+      <ViewHead id="t-lekar" icon="steth" title={backend ? 'Lékař: případ' : 'Lékař: odeslaný pacient'} />
       {route.page !== 'detail' ? <InvalidCaseState /> : (
         <>
           <CaseSectionNav role="lekar" caseId={route.caseId} section={section} onNavigate={onNavigate} />

@@ -24,7 +24,6 @@ export function FoldToggle({ fold, expanded, hiddenGroups, hiddenItems, onToggle
 
 interface GroupedTableProps<T> {
   readonly labelledBy: string
-  readonly caption: ReactNode
   readonly columns: readonly Column[]
   readonly groups: readonly TableGroup<T>[]
   readonly row: (item: T, group: TableGroup<T>) => ReactNode
@@ -36,7 +35,7 @@ interface GroupedTableProps<T> {
 }
 
 /** Dense grouped data: one header per group carrying its shared context, compact rows, optional folding. Uses the lab-table look. */
-export function GroupedTable<T>({ labelledBy, caption, columns, groups, row, limit, budget = 24, fold = { unit: 'skupiny', items: ENTRIES } }: GroupedTableProps<T>) {
+export function GroupedTable<T>({ labelledBy, columns, groups, row, limit, budget = 24, fold = { unit: 'skupiny', items: ENTRIES } }: GroupedTableProps<T>) {
   const folded = useFolded(groups, limit ?? groups.length, budget)
   return (
     <>

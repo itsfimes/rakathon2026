@@ -28,7 +28,7 @@ const panelName = (panel: string | undefined) => panel ? LAB_PANEL[panel] ?? pan
 /** Dense lab results: grouped by panel and dates, value and unit as the scan line, absent fields one quiet mark. */
 export function LabTable({ facts, sources, labelledBy }: LabTableProps) {
   const groups = labGroups(facts)
-  return <GroupedTable labelledBy={labelledBy} caption="„—“ = ve zdroji neuvedeno." columns={COLUMNS} groups={groups} fold={{ unit: 'skupiny', items: VALUES }}
+  return <GroupedTable labelledBy={labelledBy} columns={COLUMNS} groups={groups} fold={{ unit: 'skupiny', items: VALUES }}
     row={(fact, group) => <LabRow key={fact.id} fact={fact} sources={sources} showNote={!sharedValue(group.items, item => item.value.suppliedNote)} />} />
 }
 

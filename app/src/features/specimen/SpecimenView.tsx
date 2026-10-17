@@ -32,9 +32,9 @@ const TAGS: readonly StatusLabel[] = [
 export function SpecimenView() {
   return (
     <>
-      <ViewHead id="t-specimen" icon="layers" title="Vizuální jazyk" lead="Nástroj návrhu, ne role: tokeny, písmo, ikony, prvky a stavy všech čtyř pohledů." />
+      <ViewHead id="t-specimen" icon="layers" title="Vizuální jazyk" />
       <div className="spec-grid">
-        <Panel id="t-col" title="Barvy" meta="Kontrast textu vůči podkladu, měřeno.">
+        <Panel id="t-col" title="Barvy">
           <PanelBody>
             <ul className="swatches">
               {SWATCHES.map(swatch => (
@@ -47,7 +47,7 @@ export function SpecimenView() {
             <p className="meta">* na světlém podkladu štítku. Barva vždy doplňuje ikonu a slovo.</p>
           </PanelBody>
         </Panel>
-        <Panel id="t-type" title="Písmo a ikony" meta="Systémové písmo, pevná škála podle rolí; ikony vždy se slovem.">
+        <Panel id="t-type" title="Písmo a ikony">
           <PanelBody>
             <div className="type-scale">
               <p className="ts-2xl">36 · datum v kalendáři</p>
@@ -62,7 +62,7 @@ export function SpecimenView() {
             </ul>
           </PanelBody>
         </Panel>
-        <Panel id="t-comp" title="Prvky" meta="Pouze vzhled: nic nehledají, nepřiřazují ani neukládají.">
+        <Panel id="t-comp" title="Prvky">
           <PanelBody>
             <ButtonRow>
               <Button>Hlavní akce</Button>
@@ -76,7 +76,7 @@ export function SpecimenView() {
             </Field>
           </PanelBody>
         </Panel>
-        <Panel id="t-states" title="Stavy" meta="Náhled stavů, ne funkce.">
+        <Panel id="t-states" title="Stavy">
           <PanelBody><StatePreview /></PanelBody>
         </Panel>
       </div>

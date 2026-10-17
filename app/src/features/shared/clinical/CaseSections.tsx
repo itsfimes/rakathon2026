@@ -72,8 +72,7 @@ export function AttentionPanel({ detail, role, onNavigate }: { readonly detail: 
   }
   const items = attentionItems(detail.clinical.domains)
   return (
-    <Panel id={id} icon="alert" title={<>Upozornění<span className="tag tag--neutral">{items.length}</span></>}
-      meta="">
+    <Panel id={id} icon="alert" title={<>Upozornění<span className="tag tag--neutral">{items.length}</span></>}>
       <PanelBody>
         {items.length === 0 ? <p className="placeholder-text">Žádný rozpor ani nejistota nejsou v záznamu označeny.</p> : (
           <ul className="attention">

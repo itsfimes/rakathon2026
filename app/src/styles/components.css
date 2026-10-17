@@ -18,8 +18,6 @@
   }
   /* Wraps so a status tag in the title moves to its own line instead of widening narrow screens. */
   .panel__title { font-size: var(--type-panel-title); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); min-width: 0; }
-  .panel__meta { color: var(--c-ink-muted); font-size: var(--fs-xs); }
-  .panel__head .panel__meta { flex-basis: 100%; }
   .panel__body { padding: var(--s-4); display: grid; gap: var(--s-4); }
 
   /* Text helpers */

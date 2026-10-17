@@ -59,13 +59,12 @@ export function CareBody({ record, idPrefix, snapshot = false }: { readonly reco
             }} />
         </PanelBody>
       </Panel>
-      {!snapshot && <Panel id={`${idPrefix}-plan`} icon="team" title="Porady, závěry a plán" meta="Aktuální záznam včetně údajů po poradě. Není to podklad, který měla porada k dispozici.">
+      {!snapshot && <Panel id={`${idPrefix}-plan`} icon="team" title="Porady, závěry a plán">
         <PanelBody><PlanFacts facts={domains.mdtPlan} sources={sources} empty="Žádná porada ani plán nejsou v záznamu." /></PanelBody>
       </Panel>}
-      <Panel id={`${idPrefix}-docs`} icon="calendar" title={snapshot ? 'Verze zdrojů použité v přípravě' : 'Dokumenty podle času'}
-        meta={snapshot ? 'Jen verze, na které odkazují doložené položky. Vydání a dostupnost nejsou datum klinické události.' : 'Vydání a místní dostupnost dokumentu nejsou datum klinické události.'}>
+      <Panel id={`${idPrefix}-docs`} icon="calendar" title={snapshot ? 'Verze zdrojů použité v přípravě' : 'Dokumenty podle času'}>
         {sources.length === 0 ? <PanelBody><p className="placeholder-text">Žádný zdroj není v záznamu.</p></PanelBody> : (
-          <GroupedTable labelledBy={`${idPrefix}-docs`} caption="Dokumenty seskupené podle data vydání, v pořadí záznamu. „—“ = ve zdroji neuvedeno." columns={DOC_COLUMNS}
+          <GroupedTable labelledBy={`${idPrefix}-docs`} columns={DOC_COLUMNS}
             groups={groupInOrder(sources, source => clinicalTimeText(source.issued)).map(group => ({ key: group.key, items: group.items, title: `Vydáno: ${group.key}`, meta: [] }))}
             row={source => (
               <tr key={`${source.ref.sourceId}|${source.ref.version}`} className="lab-table__row">

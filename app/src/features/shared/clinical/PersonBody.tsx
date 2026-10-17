@@ -40,7 +40,7 @@ export function PersonBody({ record, idPrefix }: { readonly record: ClinicalReco
   const { domains, sources } = record
   return (
     <div className="record">
-      <Panel id={`${idPrefix}-id`} icon="person" title="Totožnost a kontakt" meta="Citlivé identifikátory a kontakty se zobrazí jen na vyžádání. Nikdy nejsou v seznamech ani v adrese stránky.">
+      <Panel id={`${idPrefix}-id`} icon="person" title="Totožnost a kontakt">
         <PanelBody>
           {domains.identity.length === 0 && <p className="placeholder-text">Identifikační údaje nejsou v klinickém záznamu.</p>}
           <FactGroups facts={domains.identity} render={fact => {
@@ -61,7 +61,7 @@ export function PersonBody({ record, idPrefix }: { readonly record: ClinicalReco
             }} />
         </PanelBody>
       </Panel>
-      <Panel id={`${idPrefix}-wish`} icon="team" title="Přání ke sdílení a souhlasy" meta="Zaznamenané přání není oprávnění k přístupu v této aplikaci.">
+      <Panel id={`${idPrefix}-wish`} icon="team" title="Přání ke sdílení a souhlasy">
         <PanelBody>
           {domains.identity.every(fact => !fact.value.sharingWish && !fact.value.consents?.length)
             ? <p className="placeholder-text">Žádné přání ke sdílení ani souhlas nejsou zaznamenány.</p>
@@ -83,7 +83,7 @@ export function PersonBody({ record, idPrefix }: { readonly record: ClinicalReco
               }} />
           </PanelBody>
         </Panel>
-        <Panel id={`${idPrefix}-sup`} icon="help" title="Psychická podpora" meta="Jen zaznamenané údaje a doporučení, bez nového hodnocení.">
+        <Panel id={`${idPrefix}-sup`} icon="help" title="Psychická podpora">
           <PanelBody>
             {domains.supportiveCare.length === 0 && <p className="placeholder-text">Údaje o podpoře nejsou v záznamu.</p>}
             <FactGroups facts={domains.supportiveCare} render={fact => {

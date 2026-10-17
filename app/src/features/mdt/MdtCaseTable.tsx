@@ -17,7 +17,6 @@ interface MdtCaseTableProps {
 export function MdtCaseTable({ labelledBy, queue, onNavigate }: MdtCaseTableProps) {
   return (
     <Table labelledBy={labelledBy}
-      caption="Seznam dostupných případů. Zda má případ uzavřenou přípravu porady, ukáže až jeho stránka."
       columns={['Pacient', 'Diagnóza', 'Úsek']}>
       {queue.map(item => {
         const route: Route = { view: 'mdt', page: 'detail', caseId: item.caseId }

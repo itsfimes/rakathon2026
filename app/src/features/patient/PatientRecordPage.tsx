@@ -75,7 +75,7 @@ function ResultsTable({ results }: { readonly results: readonly PatientRecordEnt
     const note = sharedValue(group.items, entry => entry.value.suppliedNote)
     return { key: group.key, items: group.items, title, meta: [...times, `Zdroj: ${sourceText(first)}`, ...note ? [note] : []] }
   })
-  return <GroupedTable labelledBy="t-pr-results" caption="„—“ = ve zprávě neuvedeno." columns={RESULT_COLUMNS} groups={groups} fold={{ unit: 'skupiny', items: VALUES }}
+  return <GroupedTable labelledBy="t-pr-results" columns={RESULT_COLUMNS} groups={groups} fold={{ unit: 'skupiny', items: VALUES }}
     row={(entry, group) => {
       const v = entry.value
       const cultureOnly = v.culture && v.value === undefined
@@ -122,7 +122,7 @@ function MeasurementsTable({ entries }: { readonly entries: readonly PatientReco
     return source ? [`Zdroj: ${source}`] : []
   })
   const shared = new Map(groups.map(group => [group.key, group]))
-  return <GroupedTable labelledBy="t-pr-measurements" caption={`Sezení měření v pořadí zpráv (${groups.length}). „—“ = ve zprávě neuvedeno.`} columns={MEASUREMENT_COLUMNS.slice(0, 3)}
+  return <GroupedTable labelledBy="t-pr-measurements" columns={MEASUREMENT_COLUMNS.slice(0, 3)}
     groups={groups} limit={SESSION_LIMIT} fold={SESSION_FOLD}
     row={(entry, group) => {
       const own = shared.get(group.key)!
@@ -163,7 +163,7 @@ export function PatientRecordPage({ record }: { readonly record: PatientRecord }
         {record.omittedCount > 0 && <p>{record.omittedCount} {record.omittedCount === 1 ? 'položka se nevešla' : 'položek se nevešlo'} do přehledu a nejsou zobrazeny.</p>}
       </Notice>
       <div className="patient-record__main">
-        <Panel id="t-pr-results" icon="file" title="Výsledky vyšetření" meta="Hodnota, jednotka a rozmezí přesně podle zprávy.">
+        <Panel id="t-pr-results" icon="file" title="Výsledky vyšetření">
           {record.results.length === 0 ? <PanelBody><Empty text={record.coverage?.observations === 'unavailable' ? 'Výsledky nejsou dostupné — zdroj pozorování se nepodařilo načíst.' : 'Žádné výsledky zatím nejsou k dispozici.'} /></PanelBody> : (
             <ResultsTable results={record.results} />
           )}
@@ -179,7 +179,7 @@ export function PatientRecordPage({ record }: { readonly record: PatientRecord }
             )} />
           </PanelBody>
         </Panel>
-        <Panel id="t-pr-symptoms" icon="person" title="Obtíže, které jste uvedl(a)" meta="Tak, jak jsou zapsané ve zprávách. Přibližný začátek zůstává přibližný.">
+        <Panel id="t-pr-symptoms" icon="person" title="Obtíže, které jste uvedl(a)">
           <PanelBody>
             {record.symptoms.length === 0 ? <Empty text="Žádné obtíže nejsou zaznamenány." /> : <EntryGroups entries={record.symptoms} render={(entry, index) => {
                 const v = entry.value
@@ -196,7 +196,7 @@ export function PatientRecordPage({ record }: { readonly record: PatientRecord }
               }} />}
           </PanelBody>
         </Panel>
-        <Panel id="t-pr-measurements" icon="calendar" title="Měření" meta="Hodnota a jednotka podle zprávy, vždy s datem měření, pokud je uvedeno.">
+        <Panel id="t-pr-measurements" icon="calendar" title="Měření">
           {record.measurements.length === 0 ? <PanelBody><Empty text={record.coverage?.observations === 'unavailable' ? 'Měření nejsou dostupná — zdroj pozorování se nepodařilo načíst.' : 'Žádná měření nejsou zaznamenána.'} /></PanelBody>
             : <MeasurementsTable entries={record.measurements} />}
         </Panel>
@@ -235,7 +235,7 @@ export function PatientRecordPage({ record }: { readonly record: PatientRecord }
               }} />}
           </PanelBody>
         </Panel>
-        <Panel id="t-pr-wish" icon="team" title="Vaše přání ke sdílení informací" meta="Zaznamenané přání není oprávnění k přístupu v této aplikaci.">
+        <Panel id="t-pr-wish" icon="team" title="Vaše přání ke sdílení informací">
           <PanelBody>
             {record.sharingWishes.length === 0 ? <Empty text="Žádné přání není zaznamenáno." /> : <EntryGroups entries={record.sharingWishes} render={(entry, index) => (
                 <Entry key={index} entry={entry} title={entry.value.text}>

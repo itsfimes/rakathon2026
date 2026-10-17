@@ -22,7 +22,6 @@
   .view__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-2) var(--s-4); margin-bottom: var(--s-4); }
   .view__title { font-size: var(--type-page-title); display: flex; align-items: center; gap: var(--s-2); }
   .view__title .icon { width: var(--icon-lg); height: var(--icon-lg); color: var(--c-accent); }
-  .view__lead { color: var(--c-ink-muted); font-size: var(--fs-sm); }
   .view__state { display: grid; gap: var(--s-4); max-width: var(--patient-max); }
   .view__state--wide { max-width: none; margin-bottom: var(--s-4); }
 

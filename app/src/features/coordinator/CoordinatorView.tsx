@@ -2,12 +2,10 @@ import { CaseGate } from '../../components/shell/CaseGate'
 import { EmptyState, ErrorState, InvalidCaseState, LoadingState } from '../../components/shell/DataState'
 import { ViewHead } from '../../components/shell/ViewHead'
 import { Panel } from '../../components/ui/Panel'
-import { formatDate } from '../../lib/format'
 import type { ClinicianNavigation, RoleViewProps } from '../types'
 import { BackToList } from '../shared/RouteLinks'
 import { LegacyProcessNote } from '../shared/LegacyNote'
 import { AttentionPanel, CaseHeader, CaseSectionBody, CaseSectionNav } from '../shared/clinical/CaseSections'
-import { SECTION_LABEL } from '../shared/clinical/facts'
 import { CaseDetailPanel } from './CaseDetailPanel'
 import { QueueTable } from './QueueTable'
 
@@ -20,7 +18,7 @@ export function CoordinatorView({ workspace, detail, actions, route, onNavigate,
     return (
       <>
         <BackToList role="koordinator" label="Zpět na frontu případů" onReturn={onReturn} />
-        <ViewHead id="t-koordinator" icon="queue" title="Detail případu" lead={route.page === 'detail' ? SECTION_LABEL[section] : undefined} />
+        <ViewHead id="t-koordinator" icon="queue" title="Detail případu" />
         {route.page !== 'detail' ? <InvalidCaseState /> : (
           <>
             <CaseSectionNav role="koordinator" caseId={route.caseId} section={section} onNavigate={onNavigate} />
@@ -45,12 +43,9 @@ export function CoordinatorView({ workspace, detail, actions, route, onNavigate,
       </>
     )
   }
-  const lead = workspace.status === 'ready'
-    ? workspace.value.metadata.origin === 'backend' ? `` : ``
-    : undefined
   return (
     <>
-      <ViewHead id="t-koordinator" icon="queue" title="Koordinátor: fronta případů" lead={lead} />
+      <ViewHead id="t-koordinator" icon="queue" title="Koordinátor: fronta případů" />
       {workspace.status === 'ready' ? (
         workspace.value.queue.length === 0
           ? <EmptyState title="Fronta je prázdná" text={workspace.value.metadata.origin === 'backend' ? 'Zdroj dat nenabízí žádný případ.' : 'Žádný případ nečeká na další krok.'} />
