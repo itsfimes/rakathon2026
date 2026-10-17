@@ -15,3 +15,6 @@ app/tsconfig.tsbuildinfo
 app/.env
 app/.env.*
 !app/.env.example
+
+# Proprietary VZP dataset — must never be committed (purged from history 2026-10-17)
+vzp_data/
