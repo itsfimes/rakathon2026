@@ -55,8 +55,8 @@ describe('connected backend nullable role views', () => {
   })
   it.each(['koordinator', 'lekar'])('%s opens the exact case, shows independently available facts and no false empty observations', async role => {
     await mount(`${role}/case/synthetic-0/record`)
-    expect(await screen.findByText('Synthetic supplied report')).toBeInTheDocument()
-    expect(screen.getByText(/Synthetic supplied condition/)).toBeInTheDocument()
+    expect((await screen.findAllByText('Synthetic supplied report'))[0]).toBeInTheDocument()
+    expect(screen.getAllByText(/Synthetic supplied condition/)[0]).toBeInTheDocument()
     expect(screen.getByText('Nepodařilo se načíst: Pozorování, laboratorní výsledky a měření')).toBeInTheDocument()
     expect(screen.getByText(/Laboratorní výsledky nejsou dostupné/)).toBeInTheDocument()
     expect(screen.queryByText('Žádný laboratorní výsledek není v záznamu.')).not.toBeInTheDocument()

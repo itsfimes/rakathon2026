@@ -5,6 +5,8 @@ import type { Condition, Document, Observation, Patient, Report } from './schema
 import { ageAt, clinicalTime, codes, conceptText, flag, rangeText, valueText, vitalType } from './values'
 import { invalid } from './schema'
 import type { CollectionCoverage } from '../coverage'
+import { SOURCE_KIND_LABEL, sourceStatusText } from '../sourceText'
+import { sourceSummary } from './sourceSummary'
 
 type Resource = Patient | Condition | Observation | Report | Document
 const unknown: ClinicalTime = { kind: 'unknown' }
@@ -92,13 +94,13 @@ function observationFacts(r: Observation): { labs: ClinicalFact<LabPayload>[]; m
     const value = valueText(item)
     const unit = item.valueQuantity?.unit
     const range = rangeText(item)
-    if (laboratory) labs.push(fact(r, { test: label, suppliedNote: [r.status && `Stav: ${r.status}`, item.interpretation?.map(conceptText).filter(Boolean).join(' · '),
+    if (laboratory) labs.push(fact(r, { test: label, suppliedNote: [r.status && `Stav: ${sourceStatusText(r.status)}`, item.interpretation?.map(conceptText).filter(Boolean).join(' · '),
       conceptText(r.dataAbsentReason), r.effectivePeriod?.end && `Konec období: ${r.effectivePeriod.end}`].filter(Boolean).join(' · '),
       ...(value !== undefined ? { value } : {}), ...(unit !== undefined ? { unit } : {}),
       ...(range ? { referenceRange: range } : {}), ...(flag(item) ? { abnormalFlag: flag(item)! } : {}),
     }, effective, `/${index}`))
     else measurements.push(fact(r, { type: vitalType(item.code), value: value ?? conceptText(r.dataAbsentReason) ?? 'Hodnota neuvedena', ...(unit !== undefined ? { unit } : {}),
-      examination: [label, r.category?.map(conceptText).filter(Boolean).join(' · '), r.status && `Stav: ${r.status}`, range && `Rozmezí ze zdroje: ${range}`,
+      examination: [label, r.category?.map(conceptText).filter(Boolean).join(' · '), r.status && `Stav: ${sourceStatusText(r.status)}`, range && `Rozmezí ze zdroje: ${range}`,
         item.interpretation?.map(conceptText).filter(Boolean).join(' · '), r.dataAbsentReason && conceptText(r.dataAbsentReason),
       ].filter(Boolean).join(' · '),
     }, effective, `/${index}`))
@@ -109,9 +111,11 @@ export function projectClinical(dto: CaseDTO): ClinicalRecord {
   const p = dto.patient, s = dto.sections
   if (s.observations.items.reduce((sum, item) => sum + 1 + (item.component?.length ?? 0), 0) > 1000) invalid()
   const resources = [p, ...s.conditions.items, ...s.observations.items, ...s.diagnosticReports.items, ...s.documents.items]
-  const sources: ClinicalSource[] = resources.map(r => ({ ref: sourceRef(r), label: `${r.resourceType} · ${r.id}`,
+  const sources: ClinicalSource[] = resources.map(r => {
+    const summary = sourceSummary(r)
+    return { ref: sourceRef(r), label: summary.title ? `${SOURCE_KIND_LABEL[summary.kind]}: ${summary.title}` : SOURCE_KIND_LABEL[summary.kind], summary,
     issued: clinicalTime('issued' in r ? r.issued : 'date' in r ? r.date : undefined), locallyAvailable: unknown,
-  }))
+  }})
   const age = ageAt(p.birthDate, dto.fetchedAt)
   const observations = s.observations.items.map(observationFacts)
   const domains: ClinicalDomains = {

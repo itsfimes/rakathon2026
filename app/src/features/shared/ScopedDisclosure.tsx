@@ -1,17 +1,7 @@
-import { createContext, useContext } from 'react'
 import type { ReactNode } from 'react'
 import { Icon } from '../../icons/Icon'
 import type { IconName } from '../../icons/paths'
-
-export interface DetailScopeValue {
-  /** Changes with session, role, case, data revision and demo reset; remounts (closes) every scoped disclosure. */
-  readonly key: string
-  /** False while the shown case is a retained snapshot (refresh/failed refresh) or a local change is in flight. */
-  readonly live: boolean
-}
-
-const DetailScope = createContext<DetailScopeValue>({ key: 'none', live: false })
-export const DetailScopeProvider = DetailScope.Provider
+import { useDetailScope } from './detailScope'
 
 interface ScopedDisclosureProps {
   readonly summary: string
@@ -22,7 +12,7 @@ interface ScopedDisclosureProps {
 /** Native <details> for case detail. Closed again on every scope change; while the case is not
     current the body is not rendered at all and the summary explains why. */
 export function ScopedDisclosure({ summary, icon = 'file', children }: ScopedDisclosureProps) {
-  const { key, live } = useContext(DetailScope)
+  const { key, live } = useDetailScope()
   if (!live) {
     return (
       <div className="disclosure disclosure--pending">

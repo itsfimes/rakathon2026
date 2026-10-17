@@ -13,6 +13,22 @@ export interface ClinicalSource {
   readonly issued: ClinicalTime
   readonly locallyAvailable: ClinicalTime
   readonly review?: 'unreviewed' | 'reviewed'
+  /** Bounded, allowlisted description of what this one source record contains; never a raw resource dump. */
+  readonly summary?: SourceSummary
+}
+export type SourceKind = 'laboratory' | 'measurement' | 'condition' | 'report' | 'document' | 'patient'
+export interface SourceSummaryValue { readonly label: string; readonly value: string; readonly unit?: string }
+export interface SourceSummary {
+  readonly kind: SourceKind
+  readonly title?: string
+  /** Status code exactly as the source states it (e.g. "final"); translated for display only. */
+  readonly status?: string
+  readonly clinicalStatus?: string
+  /** When the clinical event happened (measured / onset / examined), not when it was issued or imported. */
+  readonly clinicalTime?: ClinicalTime
+  readonly recorded?: ClinicalTime
+  readonly values?: readonly SourceSummaryValue[]
+  readonly resultCount?: number
 }
 export interface ClinicalFact<T> {
   readonly id: string

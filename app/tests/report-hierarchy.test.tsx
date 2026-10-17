@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ClinicalDomains, ClinicalFact, ClinicalSource, ImagingProcedurePayload } from '../src/data/clinical'
 import { ClinicalRecordBody } from '../src/features/shared/clinical/ClinicalRecordBody'
-import { DetailScopeProvider } from '../src/features/shared/ScopedDisclosure'
+import { DetailScopeProvider } from '../src/features/shared/detailScope'
 
 afterEach(() => cleanup())
 

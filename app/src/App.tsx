@@ -5,7 +5,7 @@ import { buildAssistantContext } from './assistant/context'
 import { useAssistant } from './assistant/useAssistant'
 import { isAssistantRole } from './assistant/validation'
 import { AssistantDialog } from './features/assistant/AssistantDialog'
-import { DetailScopeProvider } from './features/shared/ScopedDisclosure'
+import { DetailScopeProvider } from './features/shared/detailScope'
 import { IconSprite } from './icons/IconSprite'
 import { AboutFooter } from './components/shell/AboutFooter'
 import { AppBar } from './components/shell/AppBar'
@@ -204,7 +204,7 @@ export function App({ boot }: { readonly boot: Promise<BootstrapResult> }) {
             : views[view]}</DetailScopeProvider>
         </section>
       </main>
-      <AboutFooter demo={session?.mode === 'mock'} open={aboutOpen} onOpenChange={setAboutOpen} />
+      <AboutFooter demo={session?.mode === 'mock'} serverAssistant={session?.mode === 'backend' && session.assistant.availability === 'available' && session.assistant.provenance === 'server'} open={aboutOpen} onOpenChange={setAboutOpen} />
       <AssistantDialog open={assistantOpen} onClose={closeAssistant} assistant={assistant} view={view}
         sourceLabel={session?.mode === 'backend' && session.connection ? session.connection === 'connected' ? 'Backend IRIS · vývojové připojení' : 'Backend IRIS · není dostupný' : undefined}
         mode={strip.kind} contextReason={contextReason} returnFocus={assistantTrigger} skipFocusRestore={skipFocusRestore} />

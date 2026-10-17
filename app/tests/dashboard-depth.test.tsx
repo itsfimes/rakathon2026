@@ -6,7 +6,7 @@ import type { BootstrapResult, CaseDocument, Session, SourceField } from '../src
 import { createMockSession } from '../src/data/mock/provider'
 import { SourceReviewPanel } from '../src/features/doctor/SourceReviewPanel'
 import { DocumentEvidence } from '../src/features/shared/DocumentEvidence'
-import { DetailScopeProvider } from '../src/features/shared/ScopedDisclosure'
+import { DetailScopeProvider } from '../src/features/shared/detailScope'
 import type { DemoActions } from '../src/hooks/useDemoActions'
 
 const boot = (value: Session): Promise<BootstrapResult> => Promise.resolve({ status: 'session', session: value })
