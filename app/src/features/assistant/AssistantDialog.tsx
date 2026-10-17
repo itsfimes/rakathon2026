@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { FormEvent, RefObject } from 'react'
 import { ASSISTANT_FIELD_LABELS, ASSISTANT_LIMITS } from '../../assistant/contracts'
 import { ASSISTANT_PROMPTS } from '../../assistant/prompts'
@@ -9,7 +9,6 @@ import { Icon } from '../../icons/Icon'
 import type { ViewId } from '../../lib/roles'
 import { ContextAttach, Transcript } from './AssistantParts'
 import { provenanceText } from './labels'
-import { lockBodyScroll } from './bodyLock'
 import { revealScrollTop } from './scroll'
 
 type Controller = ReturnType<typeof useAssistant>
@@ -35,50 +34,46 @@ const MODE_TEXT: Record<ModeStripState['kind'], { readonly tone: string; readonl
   starting: { tone: 'backend', label: 'Zdroj dat · načítání konfigurace' },
 }
 
-/** Native modal dialog (showModal on every viewport): the browser handles focus containment,
-    background inertness and Escape; we only mirror the close into app state and restore focus. */
+/** Non-modal docked panel (dialog.show): the page stays interactive and reflows around it
+    (right column on desktop, bottom dock on phones). Escape inside the panel closes it. */
 export function AssistantDialog({ open, onClose, assistant, view, mode, sourceLabel, contextReason, returnFocus, skipFocusRestore }: AssistantDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
 
+  // Closing plays a short slide-out before the real close. While it runs, the sheet shows a frozen
+  // copy of the last open render (the hook clears on close) and is inert. Reopening cancels it.
+  const [exiting, setExiting] = useState(false)
+  const [wasOpen, setWasOpen] = useState(open)
+  if (wasOpen !== open) {
+    setWasOpen(open)
+    setExiting(!open && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+  }
+
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog) return
-    if (open && !dialog.open) {
-      dialog.showModal()
+    if (open) {
+      if (!dialog.open) dialog.show()
       titleRef.current?.focus()
-    } else if (!open && dialog.open) {
-      dialog.close()
+      return
     }
-  }, [open])
-
-  // Phones: freeze the page under the modal so touch scrolling (and the toolbar it drives) cannot
-  // move it. A route closure leaves scroll to the new page; a plain close returns to the same spot.
-  const skipRef = useRef(skipFocusRestore)
-  useLayoutEffect(() => { skipRef.current = skipFocusRestore }, [skipFocusRestore])
-  useEffect(() => {
-    if (!open || !window.matchMedia) return
-    const query = window.matchMedia('(max-width: 760px)')
-    let active = true
-    let release: ReturnType<typeof lockBodyScroll> | undefined
-    const sync = () => {
-      if (!active) return
-      if (query.matches) {
-        release ??= lockBodyScroll()
-      } else {
-        release?.(!skipRef.current?.())
-        release = undefined
-      }
+    if (!dialog.open) return
+    if (!exiting) { dialog.close(); return }
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      setExiting(false)
+      if (dialog.open) dialog.close()
     }
-    sync()
-    query.addEventListener?.('change', sync)
+    const onEnd = (event: AnimationEvent) => { if (event.target === dialog) finish() }
+    dialog.addEventListener('animationend', onEnd)
+    const timer = window.setTimeout(finish, 400)
     return () => {
-      active = false
-      query.removeEventListener?.('change', sync)
-      release?.(!skipRef.current?.())
-      release = undefined
+      dialog.removeEventListener('animationend', onEnd)
+      window.clearTimeout(timer)
     }
-  }, [open])
+  }, [open, exiting])
 
   // Focus goes back to the trigger (or main content) whenever the dialog is closed by any route.
   function restoreFocus() {
@@ -88,14 +83,20 @@ export function AssistantDialog({ open, onClose, assistant, view, mode, sourceLa
   }
 
   return (
-    <dialog ref={dialogRef} className="assistant" aria-labelledby="assistant-title" aria-describedby="assistant-scope"
+    <dialog ref={dialogRef} className={exiting ? 'assistant is-closing' : 'assistant'} inert={exiting || undefined} aria-labelledby="assistant-title" aria-describedby="assistant-scope"
       onCancel={event => { event.preventDefault(); onClose() }}
+      onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onClose() } }}
       onClose={() => { if (open) onClose(); restoreFocus() }}>
-      {/* Mounted only while open: the inspection view and scroll memory reset on every opening. */}
-      {open && <Sheet onClose={onClose} assistant={assistant} view={view} mode={mode} sourceLabel={sourceLabel} contextReason={contextReason} titleRef={titleRef} />}
+      {/* Mounted only while open (and its exit): the inspection view and scroll memory reset on every opening. */}
+      {(open || exiting) && <HeldSheet frozen={!open} onClose={onClose} assistant={assistant} view={view} mode={mode} sourceLabel={sourceLabel} contextReason={contextReason} titleRef={titleRef} />}
     </dialog>
   )
 }
+
+/** While frozen (exit animation) the sheet keeps its last rendered content instead of the cleared state. */
+const HeldSheet = memo(function HeldSheet(props: SheetProps & { readonly frozen: boolean }) {
+  return <Sheet {...props} />
+}, (_prev, next) => next.frozen)
 
 interface SheetProps {
   readonly sourceLabel?: string | undefined

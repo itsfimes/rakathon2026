@@ -4,6 +4,7 @@ import type { BootstrapResult, Session } from './data/contracts'
 import { buildAssistantContext } from './assistant/context'
 import { useAssistant } from './assistant/useAssistant'
 import { isAssistantRole } from './assistant/validation'
+import { Icon } from './icons/Icon'
 import { AssistantDialog } from './features/assistant/AssistantDialog'
 import { DetailScopeProvider } from './features/shared/detailScope'
 import { IconSprite } from './icons/IconSprite'
@@ -39,7 +40,7 @@ type Boot =
   | { readonly status: 'session'; readonly session: Session }
 
 /** Composition root. Receives the one bootstrapped session promise (created once per page). */
-export function App({ boot, authed, lockedView }: { readonly boot: Promise<BootstrapResult>; readonly authed?: boolean; readonly lockedView?: ViewId | null }) {
+export function App({ boot, authed, lockedView, onLogout, loggingOut }: { readonly boot: Promise<BootstrapResult>; readonly authed?: boolean; readonly lockedView?: ViewId | null; readonly onLogout?: () => void; readonly loggingOut?: boolean }) {
   const [state, setState] = useState<Boot>({ status: 'starting' })
   useEffect(() => {
     let active = true
@@ -187,7 +188,9 @@ export function App({ boot, authed, lockedView }: { readonly boot: Promise<Boots
       <a className="skip-link" href="#obsah" onClick={event => { if (!isPlainActivation(event)) return; event.preventDefault(); skipToContent() }}>Přeskočit na obsah</a>
       <ModeStrip ref={stripRef} state={strip} feedback={actions.feedback} />
       <AppBar ref={appbarRef} view={view} asOf={workspace.status === 'ready' ? workspace.value.asOf : null} demo={session?.mode === 'mock'}
-        assistantOpen={assistantOpen} onAssistant={() => { setRouteClosed(false); setAssistantOpen(true) }} assistantRef={assistantTrigger} />
+        onLogout={onLogout} loggingOut={loggingOut} />
+      <button type="button" ref={assistantTrigger} className="assist-fab" aria-haspopup="dialog" aria-expanded={assistantOpen} hidden={assistantOpen}
+        onClick={() => { setRouteClosed(false); setAssistantOpen(true) }}><Icon name="robot" small />Asistent</button>
       <main id="obsah" className="content" tabIndex={-1}>
         <section className={view === 'pacient' ? 'view view--patient' : 'view'} id={view} aria-labelledby={`t-${view}`}>
           <DetailScopeProvider value={detailScope}>{route.page === 'invalid-view'
