@@ -3,6 +3,9 @@ import type { ClinicalFact, ClinicalSource, ClinicalTime, SourceRef } from '../.
 import { Tag } from '../../../components/ui/Tag'
 import { ScopedDisclosure } from '../ScopedDisclosure'
 import { clinicalFactState, clinicalTimeText, factStatusLabels } from './clinicalText'
+import { SourceRecord } from './SourceRecord'
+import { SourceDialog } from './SourceDialog'
+import { SOURCE_KIND_LABEL } from '../../../data/sourceText'
 
 /** Label/value list that renders only supplied values; explicit "neuvedeno" is the caller's choice. */
 export function Fields({ items }: { readonly items: readonly (readonly [string, ReactNode | undefined])[] }) {
@@ -26,39 +29,41 @@ const refText = (ref: SourceRef) => `${ref.sourceId} · verze ${ref.version}`
 const findSource = (sources: readonly ClinicalSource[], ref: SourceRef) =>
   sources.filter(source => source.ref.sourceId === ref.sourceId && source.ref.version === ref.version)
 
-/** On-demand inspection of the exact supplied source versions and their three distinct times. */
-export function SourceInspect({ fact, sources, effectiveLabel = 'Týká se doby' }: {
+/** Exact supplied source versions; the effective-time line is shown only when no structured source already states its own date. */
+export function SourceList({ fact, sources, effectiveLabel }: { readonly fact: ClinicalFact<unknown>; readonly sources: readonly ClinicalSource[]; readonly effectiveLabel: string }) {
+  const resolved = fact.sources.map(ref => findSource(sources, ref))
+  const datedBySource = resolved.every(matches => matches.length === 1 && matches[0]!.summary?.clinicalTime && matches[0]!.summary.clinicalTime.kind !== 'unknown')
+  return <>
+    {!datedBySource && <p className="meta">{effectiveLabel}: {clinicalTimeText(fact.effective)}. Datum vydání ani dostupnosti není datum klinické události.</p>}
+    <ul className="source-list">
+      {fact.sources.map((ref, index) => {
+        const matches = resolved[index]!
+        const source = matches.length === 1 ? matches[0] : undefined
+        return (
+          <li key={refText(ref)}>
+            {source ? <SourceRecord source={source} refText={refText(ref)} showIdentity />
+              : <p className="placeholder-text">{refText(ref)}: {matches.length > 1 ? 'zdroj není jednoznačný' : 'zdroj v záznamu nenalezen'}</p>}
+          </li>
+        )
+      })}
+    </ul>
+  </>
+}
+
+/** On-demand inspection of the exact supplied source versions. Inside tables use `dialog` so the row never grows. */
+export function SourceInspect({ fact, sources, effectiveLabel = 'Týká se doby', presentation = 'inline' }: {
   readonly fact: ClinicalFact<unknown>
   readonly sources: readonly ClinicalSource[]
   readonly effectiveLabel?: string
+  readonly presentation?: 'inline' | 'dialog'
 }) {
   if (fact.sources.length === 0) return <p className="fact__meta">Zdroj není uveden.</p>
-  return (
-    <ScopedDisclosure icon="file" summary={`Zdroj a časy (${fact.sources.length})`}>
-      <p className="meta">{effectiveLabel}: {clinicalTimeText(fact.effective)}. Datum vydání ani dostupnosti není datum klinické události.</p>
-      <ul className="source-list">
-        {fact.sources.map(ref => {
-          const matches = findSource(sources, ref)
-          const source = matches.length === 1 ? matches[0] : undefined
-          return (
-            <li key={refText(ref)}>
-              {source ? (
-                <>
-                  <p className="source-list__label">{source.label}</p>
-                  <Fields items={[
-                    ['Označení zdroje', refText(ref)],
-                    ['Vydáno', clinicalTimeText(source.issued)],
-                    ['Místně k dispozici', clinicalTimeText(source.locallyAvailable)],
-                    ['Kontrola zdroje', source.review === 'reviewed' ? 'zkontrolováno' : source.review === 'unreviewed' ? 'zatím nezkontrolováno' : undefined],
-                  ]} />
-                </>
-              ) : <p className="placeholder-text">{refText(ref)}: {matches.length > 1 ? 'zdroj není jednoznačný' : 'zdroj v záznamu nenalezen'}</p>}
-            </li>
-          )
-        })}
-      </ul>
-    </ScopedDisclosure>
-  )
+  const only = fact.sources.length === 1 ? findSource(sources, fact.sources[0]!) : []
+  const kind = only.length === 1 ? only[0]!.summary?.kind : undefined
+  const summary = kind ? `Zdrojový záznam: ${SOURCE_KIND_LABEL[kind].toLowerCase()}` : fact.sources.length === 1 ? 'Zdrojový záznam' : `Zdrojové záznamy (${fact.sources.length})`
+  const body = <SourceList fact={fact} sources={sources} effectiveLabel={effectiveLabel} />
+  if (presentation === 'dialog') return <SourceDialog summary={summary} title={only.length === 1 ? only[0]!.label : summary}>{body}</SourceDialog>
+  return <ScopedDisclosure icon="file" summary={summary}>{body}</ScopedDisclosure>
 }
 
 interface FactBlockProps {

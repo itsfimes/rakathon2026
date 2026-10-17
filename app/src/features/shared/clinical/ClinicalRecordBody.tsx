@@ -127,7 +127,7 @@ function LabsPanel({ facts, sources, id, unavailable }: PanelProps<LabPayload>) 
                 <StackCell label="Rozmezí">{v.referenceRange ?? <span className="placeholder-text">neuvedeno</span>}</StackCell>
                 <StackCell label="Označení">{flag ? <Tag label={flag} /> : <span className="placeholder-text">bez označení</span>}</StackCell>
                 <StackCell label="Odběr · výsledek"><span className="sub sub--ink">Odběr: {clinicalTimeText(v.sampleAt)}</span><span className="sub">Výsledek: {clinicalTimeText(v.resultAt)}</span></StackCell>
-                <StackCell label="Stav a zdroj"><FactTags fact={fact} /><SourceInspect fact={fact} sources={sources} effectiveLabel="Platnost výsledku" /></StackCell>
+                <StackCell label="Stav a zdroj"><FactTags fact={fact} /><SourceInspect fact={fact} sources={sources} effectiveLabel="Platnost výsledku" presentation="dialog" /></StackCell>
               </tr>
             )
           })}

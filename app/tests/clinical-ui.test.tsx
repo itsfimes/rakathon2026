@@ -43,17 +43,18 @@ describe('clinician case sections', { timeout: 20000 }, () => {
     expect(text()).toContain('datum neuvedeno')
     expect(text()).toContain('Podezření, nepotvrzeno')
     expect(text()).not.toMatch(/\bT\d+N\d+M\d+\b/)
-    const summary = within(row).getByText('Zdroj a časy (1)')
-    await user.click(summary)
-    const body = summary.closest('details')!
+    await user.click(within(row).getByRole('button', { name: 'Zdrojový záznam' }))
+    const body = screen.getByRole('dialog')
+    expect(row.contains(body)).toBe(false)
     expect(body).toHaveTextContent('SYNTHETIC-results · verze 1')
-    expect(body).toHaveTextContent('Vydáno20. 10. 2026')
-    expect(body).toHaveTextContent('Místně k dispozici20. 10. 2026')
+    expect(body).toHaveTextContent('Vydáno ve zdroji20. 10. 2026')
+    expect(body).toHaveTextContent('Zpřístupněno20. 10. 2026')
     // Section change closes the disclosure (route scope).
     await go('koordinator/case/novak/care')
     await go('koordinator/case/novak/record')
     await firstRegion('Laboratoř')
     expect(document.querySelectorAll('main details[open]')).toHaveLength(0)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('overview lists unresolved items with links; care shows the recorded plan; person hides identifiers until asked', async () => {
