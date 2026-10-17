@@ -38,7 +38,7 @@ async function setup() {
 async function sendPending() {
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Asistent' }))
-  const dialog = screen.getByRole('region', { name: 'Asistent' })
+  const dialog = screen.getByRole('dialog', { name: 'Asistent' })
   await user.click(within(dialog).getByRole('checkbox', { name: 'Připojit údaje případu' }))
   fireEvent.change(within(dialog).getByLabelText('Váš dotaz'), { target: { value: 'dotaz' } })
   await user.click(within(dialog).getByRole('button', { name: 'Odeslat dotaz' }))
@@ -68,6 +68,7 @@ describe('App route/preparation lifecycle identity', () => {
     expect(resource.options!.version).toBe(before.version)
     expect(resource.options!.scopeKey).not.toBe(before.scopeKey)
     expect(app.pending[0]!.signal.aborted).toBe(true)
+    expect(dialog).toHaveAttribute('open')
     expect(within(dialog).getByLabelText('Váš dotaz')).toHaveValue('')
     expect(within(dialog).getByRole('checkbox')).not.toBeChecked()
     expect(within(dialog).queryByText('dotaz')).toBeNull()

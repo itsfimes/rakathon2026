@@ -190,58 +190,6 @@ def belongs_to(resource: dict[str, Any], patient_id: str) -> bool:
     )
 
 
-ACTIVE_CONDITION = (
-    "http://terminology.hl7.org/CodeSystem/condition-clinical",
-    "active",
-)
-
-
-def _concept_coded(concept: Any, expected: tuple[str, str]) -> bool:
-    if not isinstance(concept, dict) or not isinstance(concept.get("coding"), list):
-        return False
-    return any(
-        isinstance(coding, dict)
-        and coding.get("system") == expected[0]
-        and coding.get("code") == expected[1]
-        for coding in concept["coding"]
-    )
-
-
-def _onset_key(condition: dict[str, Any]) -> tuple[str, str]:
-    raw = condition.get("onsetDateTime")
-    if not isinstance(raw, str):
-        period = condition.get("onsetPeriod")
-        start = period.get("start") if isinstance(period, dict) else None
-        raw = start if isinstance(start, str) else condition.get("recordedDate")
-    return (raw if isinstance(raw, str) else "", str(condition.get("id", "")))
-
-
-def _coded_label(concept: Any) -> dict[str, str] | None:
-    if not isinstance(concept, dict):
-        return None
-    text = concept.get("text")
-    for coding in concept.get("coding", []):
-        if not isinstance(coding, dict):
-            continue
-        code = coding.get("code")
-        if not isinstance(code, str):
-            continue
-        display = coding.get("display")
-        label = text if isinstance(text, str) and text else display
-        return {"code": code, "label": label if isinstance(label, str) and label else code}
-    return None
-
-
-def diagnosis_of(conditions: list[dict[str, Any]]) -> dict[str, str] | None:
-    active = [
-        item for item in conditions if _concept_coded(item.get("clinicalStatus"), ACTIVE_CONDITION)
-    ]
-    if not active:
-        return None
-    chosen = max(active, key=_onset_key)
-    return _coded_label(chosen.get("code"))
-
-
 def patient_summary(resource: dict[str, Any]) -> dict[str, Any]:
     patient = project(resource, "Patient")
     names = patient.get("name", [])

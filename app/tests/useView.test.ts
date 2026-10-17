@@ -182,7 +182,7 @@ describe('single route/history owner', () => {
   it('same-role main navigation reaches list, with unknown hash fallback and legacy anchor compatibility', () => {
     const { result } = renderHook(() => useView())
     act(() => result.current.navigate({ view: 'koordinator', page: 'detail', caseId: 'one' }))
-    for (const hash of ['#obsah']) {
+    for (const hash of ['#obsah', '#o-ukazce']) {
       act(() => {
         window.history.replaceState({}, '', `/${hash}`)
         window.dispatchEvent(new HashChangeEvent('hashchange'))

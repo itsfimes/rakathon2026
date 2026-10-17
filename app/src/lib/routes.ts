@@ -107,5 +107,5 @@ export function routesEqual(a: Route, b: Route): boolean {
 
 /** Temporary compatibility seam; in-page controls must not overwrite the route hash. */
 export function isInPageHash(hash: string): boolean {
-  return hash === '#obsah'
+  return hash === '#obsah' || hash === '#o-ukazce'
 }

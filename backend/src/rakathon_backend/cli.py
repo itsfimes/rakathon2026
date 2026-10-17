@@ -12,6 +12,7 @@ from rakathon_backend.runtime.auth_cmds import (
 )
 from rakathon_backend.runtime.auth_serve import cmd_auth_serve
 from rakathon_backend.runtime.commands import (
+    cmd_ai_check,
     cmd_bridge_serve,
     cmd_client,
     cmd_demo,
@@ -49,7 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="serve until signal")
     serve.add_argument("--runtime-dir", default=None)
     serve.add_argument("--storage", choices=("mock", "bridge", "iris-fhir"), default="mock")
-    serve.add_argument("--ai", choices=("mock", "direct"), default="mock")
+    serve.add_argument("--ai", choices=("mock", "opencode", "direct"), default="mock")
     serve.add_argument("--watchdog-interval", type=float, default=1.0)
     serve.add_argument("--screening-source", default=None)
     _add_env_file_arg(serve)
@@ -77,10 +78,12 @@ def build_parser() -> argparse.ArgumentParser:
     bserve.add_argument("--port", required=True, type=int)
     bserve.add_argument("--mock-storage", action="store_true")
     sub.add_parser("bridge-init-db", help="create iris task tables")
+    ai_check = sub.add_parser("ai-check", help="validate local opencode AI config")
+    _add_env_file_arg(ai_check)
     ingest = sub.add_parser("ingest-file", help="convert a local file in an ephemeral runtime")
     ingest.add_argument("--path", required=True)
     ingest.add_argument("--user", required=True)
-    ingest.add_argument("--ai", choices=("mock", "direct"), default="mock")
+    ingest.add_argument("--ai", choices=("mock", "opencode", "direct"), default="mock")
     ingest.add_argument("--storage", choices=("mock", "iris-fhir"), default="mock")
     ingest.add_argument(
         "--patient-id", default=None, help="explicit trusted source patient association"
@@ -111,22 +114,19 @@ def build_parser() -> argparse.ArgumentParser:
     _add_env_file_arg(simp)
     sub.add_parser("screening-init-db", help="create iris screening table")
     ainit = sub.add_parser("auth-init", help="initialize private auth directory")
-    ainit.add_argument("--auth-store", choices=("demo", "iris", "iris-https"), required=True)
+    ainit.add_argument("--auth-store", choices=("demo", "iris"), required=True)
     ainit.add_argument("--auth-dir", required=True)
-    _add_env_file_arg(ainit)
     auadd = sub.add_parser("auth-user-add", help="provision a local auth user")
-    auadd.add_argument("--auth-store", choices=("demo", "iris", "iris-https"), required=True)
+    auadd.add_argument("--auth-store", choices=("demo", "iris"), required=True)
     auadd.add_argument("--auth-dir", required=True)
     auadd.add_argument("--username", required=True)
     auadd.add_argument("--role", required=True)
-    _add_env_file_arg(auadd)
     audis = sub.add_parser("auth-user-disable", help="disable a local auth user")
-    audis.add_argument("--auth-store", choices=("demo", "iris", "iris-https"), required=True)
+    audis.add_argument("--auth-store", choices=("demo", "iris"), required=True)
     audis.add_argument("--auth-dir", required=True)
     audis.add_argument("--user-id", required=True)
-    _add_env_file_arg(audis)
     aserve = sub.add_parser("auth-serve", help="serve authenticated UDS plus HTTP edge")
-    aserve.add_argument("--auth-store", choices=("demo", "iris", "iris-https"), required=True)
+    aserve.add_argument("--auth-store", choices=("demo", "iris"), required=True)
     aserve.add_argument("--auth-dir", required=True)
     aserve.add_argument("--origin", required=True)
     aserve.add_argument("--allow-loopback-http", action="store_true")
@@ -187,6 +187,8 @@ async def _async_main(argv: list[str] | None = None) -> int:
         return cmd_bridge_serve(str(args.bind), int(args.port), bool(args.mock_storage))
     if args.command == "bridge-init-db":
         return cmd_init_db()
+    if args.command == "ai-check":
+        return await cmd_ai_check()
     if args.command == "ingest-file":
         return await cmd_ingest_file(args)
     if args.command == "screening-validate":

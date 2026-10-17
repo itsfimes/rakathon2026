@@ -133,6 +133,7 @@
     --z-skip: 10;
 
     /* Sticky offsets: measured at runtime by the shell (useStickyOffsets) */
+    --mode-strip-h: 0px;
     --appbar-h: 0px;
 
     /* Motion: state feedback only */

@@ -1,4 +1,4 @@
-# Atlas frontend
+# Frontend package foundation
 
 Run commands from `app/` (Node 26+, npm). This is independent of the immutable
 `sample/` specimen and does not consume `vzp_data/`.
@@ -225,14 +225,16 @@ base setting the old zero-request `backend-unconfigured` behavior remains unchan
    History is display-only and never transmitted. `stop()` aborts safely without erasing
    visible history; `clear()` clears input/history/context and aborts. Limit reached means
    clear before another send, never silent history truncation.
-5. Collapsing the panel (`open=false`) clears state. Case/view/
+5. Close/Escape/native-dialog cancel calls `close()` AND sets `open=false`. Case/view/
    version/session/reset/freshness changes and unmount abort pending work and clear state;
-   late replies are discarded even when transport ignores abort. The panel is an inline,
-   collapsible section in the page flow, not a modal: no focus trap, inertness, focus return
-   or body scroll lock.
-6. Render user text and `message.reply.text` as plain text only. Sources are only
+   late replies are discarded even when transport ignores abort. Controlled closing alone
+   also clears state. Native modal focus/inertness/focus return and navigation-close-before-
+   focus remain the designer's responsibility. No UI/CSS changes are included here.
+6. Render user text and `message.reply.text` as plain text only. Each reply carries
+   `reply.provenance`; keep scripted vs real/unavailable visible. Sources are only
    `reply.sources` mapped through `ASSISTANT_SOURCE_LABELS`, with no arbitrary hrefs,
    selectors, evidence-approval claims or tool actions. No navigation targets are promised.
+   Keep source-mode strip/provenance visible in the modal too.
 
 For a future real adapter, supply a vendor-neutral authenticated same-origin server
 contract first, implement the capability with `availability: 'available', provenance:
@@ -257,18 +259,20 @@ No real AI is currently implemented. Research/limits: `../assistant-research.md`
 - `src/components/ui/` — primitives, one per file: Panel, Button, Tag, Notice, Disclosure, Facts,
   StepBar (+MiniSteps), NextStep, Checklist, Cells, Timeline, CalendarTile, Table/StackCell,
   Field/Input/Select, Segmented (links/radios), Skeleton, Avatar.
-- `src/components/shell/` — AppBar, ViewHead, DataState (loading/error/empty), CaseGate.
+- `src/components/shell/` — ModeStrip (persistent data-source strip), AppBar, ViewHead,
+  DataState (loading/error/empty), CaseGate, AboutFooter.
 - `src/features/{coordinator,patient,doctor,mdt,specimen}` — role compositions and their panels;
   `features/shared` holds cross-role task/document pieces. Specimen is a design tool, not a role,
   and contains no case data.
 - `src/hooks/` — `useView` (hash/`?role` allowlist + history), `useResource`/`useCaseData`
   (AbortController + request identity), `useDemoActions` (mock-only local changes, re-read after
-  success), `useStickyOffsets` (measured app-bar height → scroll offsets).
+  success), `useStickyOffsets` (measured strip/app-bar heights → scroll offsets).
 - `src/lib/` — Czech date formatters (no timezone shift), status labels, role list.
 
-Behaviour: the assistant is an inline, collapsible panel at the top of the page, not an overlay;
-mock mode shows an “Obnovit demo” control in the bar. Missing data is unavailable, never a fallback
-or fake empty queue. Local actions are labelled “(lokálně v demu)”; urge/inform/
+Behaviour: mock mode shows `DEMO · SYNTETICKÁ DATA · bez backendu` pinned on every screen with
+“Obnovit demo”; backend mode shows its unconfigured/connected/unavailable state truthfully,
+including in the assistant. Missing data is unavailable, never a fallback or fake empty queue.
+Local actions are labelled “(lokálně v demu)”; urge/inform/
 confirm-extract buttons are disabled; finalisation is always disabled.
 
 Separate explicit demo: `npm run dev:mock -- --port 5175` (no backend key needed).

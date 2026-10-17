@@ -41,7 +41,7 @@ describe('mechanical section route integration', () => {
     const { session, readCase } = trackedSession()
     window.history.replaceState(null, '', `/#${hash}`)
     render(<App boot={boot(session)} />)
-    await screen.findByText('Atlas')
+    await screen.findByText('DEMO · SYNTETICKÁ DATA · bez backendu')
     if (hash.includes('/')) {
       expect(await screen.findByRole('alert')).toHaveTextContent(/Neplatný odkaz|Neznámá sekce/)
       expect(document.body.textContent).not.toContain('Jan Novák')

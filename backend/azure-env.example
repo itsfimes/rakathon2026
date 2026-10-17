@@ -2,9 +2,8 @@
 # Keep the secret in a private 0600 file, e.g.:
 #   printf 'RAKATHON_AI_API_KEY=%s\n' "$KEY" > .env && chmod 600 .env
 RAKATHON_AI_ENABLE=1
+RAKATHON_AI_TRUST_AZURE=1
 RAKATHON_AI_PROVIDER_KIND=azure
+RAKATHON_AI_PROVIDER=rakathon-azure
 RAKATHON_AI_MODEL=gpt-6-luna-dz-eu
 RAKATHON_AI_BASE_URL=https://apim-rakathon-q7146n.azure-api.net/openai/v1
-RAKATHON_AI_AUTH_SCHEME=api-key
-RAKATHON_AI_API_KEY=
-RAKATHON_AI_ALLOW_REMOTE=1

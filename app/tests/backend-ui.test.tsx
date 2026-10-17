@@ -23,19 +23,21 @@ async function mount(route: string) {
   const fetcher = transport()
   const session = await createBackendSession(undefined, fetcher)
   render(<App boot={Promise.resolve({ status: 'session', session })} />)
-  await screen.findByText('Atlas')
+  await screen.findByText('Backend IRIS · vývojové připojení')
   return fetcher
 }
 async function go(route: string) {
   await act(async () => { window.location.hash = `#${route}`; window.dispatchEvent(new HashChangeEvent('hashchange')) })
 }
 describe('connected backend nullable role views', () => {
-  it('assistant stays unavailable against the backend without any remote assistant request', async () => {
+  it('assistant retains truthful connected source label but remains unavailable without any remote assistant request', async () => {
     const fetcher = await mount('koordinator')
     await waitFor(() => expect(document.querySelectorAll('tbody tr')).toHaveLength(6))
     fireEvent.click(screen.getByRole('button', { name: 'Asistent' }))
-    const panel = screen.getByRole('region', { name: 'Asistent' })
-    expect(within(panel).getByText('Asistent není připojen', { selector: '.assistant-empty__title' })).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('Backend IRIS · vývojové připojení')).toBeInTheDocument()
+    expect(within(dialog).getByText('Asistent není připojen', { selector: '.assistant-empty__title' })).toBeInTheDocument()
+    expect(within(dialog).queryByText('Backend · není nakonfigurován')).not.toBeInTheDocument()
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
   it.each(['koordinator', 'lekar', 'mdt'])('%s lists six summaries with unknowns, no invented phase/diagnosis and no case fanout', async role => {

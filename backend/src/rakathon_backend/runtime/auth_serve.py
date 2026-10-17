@@ -12,8 +12,6 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from rakathon_backend.b2.auth.https_config import AuthHTTPSConfig
-from rakathon_backend.b2.auth.https_store import IrisHTTPSAuthStore
 from rakathon_backend.b2.auth.iris_store import IrisAuthStore
 from rakathon_backend.b2.auth.sqlite_store import SQLiteDemoAuthStore
 from rakathon_backend.b2.iris.config import IrisSqlConfig
@@ -47,8 +45,6 @@ def _auth_store_for(name: str, auth_dir: Path) -> Any:
         return SQLiteDemoAuthStore(db_path_for(auth_dir))
     if name == "iris":
         return IrisAuthStore(IrisSqlConfig.from_env())
-    if name == "iris-https":
-        return IrisHTTPSAuthStore(AuthHTTPSConfig.from_env())
     raise ContractError(code="not_configured", message="auth store unknown")
 
 
@@ -62,8 +58,8 @@ def _stop_http(server: Any, thread: threading.Thread) -> None:
 
 async def cmd_auth_serve(args: argparse.Namespace) -> int:
     auth_store = str(getattr(args, "auth_store", "") or "")
-    if auth_store not in ("demo", "iris", "iris-https"):
-        print(json.dumps({"error": "auth-store is required: demo, iris or iris-https"}))
+    if auth_store not in ("demo", "iris"):
+        print(json.dumps({"error": "auth-store is required: demo or iris"}))
         return 2
     auth_dir = Path(str(getattr(args, "auth_dir", "") or ""))
     if not str(auth_dir):
@@ -88,9 +84,6 @@ async def cmd_auth_serve(args: argparse.Namespace) -> int:
         print(json.dumps({"error": exc.code, "message": exc.message}))
         return 1
     storage = str(getattr(args, "storage", "mock") or "mock")
-    if auth_store == "iris-https" and storage != IRIS_FHIR_MODE:
-        print(json.dumps({"error": "iris_https_requires_iris_fhir_storage"}))
-        return 2
     if storage not in ("mock", IRIS_FHIR_MODE):
         print(json.dumps({"error": "storage must be mock or iris-fhir"}))
         return 2

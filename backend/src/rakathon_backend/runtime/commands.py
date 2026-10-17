@@ -22,6 +22,7 @@ from rakathon_backend.common.ipc import UnixJsonClient
 from rakathon_backend.common.kinds import request_kind
 from rakathon_backend.common.rpc import make_client, new_envelope, socket_for
 from rakathon_backend.runtime import bridge_cmds as _bridge_cmds
+from rakathon_backend.runtime.ai_factory import ai_config_from_env, probe_version, start_ai_adapter
 from rakathon_backend.runtime.application import BackendApp, fresh_tokens
 from rakathon_backend.runtime.demo import run_demo
 from rakathon_backend.runtime.iris_fhir import IRIS_FHIR_MODE, build_iris_fhir_app
@@ -29,7 +30,7 @@ from rakathon_backend.runtime.paths import short_runtime
 from rakathon_backend.runtime.screening_cmds import archive_store_from_env
 from rakathon_backend.runtime.secret_config import remove_client_config, write_client_config
 
-__all__ = ["short_runtime"]
+__all__ = ["ai_config_from_env", "probe_version", "short_runtime", "start_ai_adapter"]
 
 
 async def cmd_demo(runtime_dir: Path) -> int:
@@ -68,6 +69,19 @@ async def cmd_serve(
             return 2
         ai_mode = "direct"
         kill_file = configured_kill_file()
+    if ai == "opencode":
+        config = ai_config_from_env()
+        if not config.ready:
+            print(json.dumps({"error": "ai_not_configured", "blockers": list(config.blockers)}))
+            return 2
+        try:
+            adapter = await start_ai_adapter(config)
+        except (ContractError, TransportError, OSError, ValueError) as exc:
+            print(json.dumps({"error": "ai_startup_failed", "message": str(exc)}))
+            return 2
+        ai_mode = "opencode"
+        if config.kill_file:
+            kill_file = Path(config.kill_file)
     bridge_store: EncryptedBridgeStorage | None = None
     screening: Any | None = None
     try:
@@ -276,6 +290,34 @@ async def cmd_client(args: argparse.Namespace) -> int:
         mode = reply.payload["mode"]
     print(json.dumps({"action": reply.action, "payload": reply.payload, "mode": mode}))
     return 0
+
+
+async def cmd_ai_check() -> int:
+    config = ai_config_from_env()
+    report: dict[str, Any] = {
+        "enabled": config.ready,
+        "blockers": list(config.blockers),
+        "binary": config.binary,
+        "expectedVersion": config.expected_version,
+        "providerKind": config.provider_kind,
+        "provider": config.provider_id,
+        "model": config.model,
+        "baseUrl": config.base_url,
+        "trustAzure": config.trust_azure,
+        "apiKeyPresent": config.api_key_present,
+        "requestTimeout": config.request_timeout,
+    }
+    try:
+        version = await probe_version(config.binary, config.expected_version)
+        report["binaryVersion"] = version
+        report["binaryOk"] = True
+    except (TransportError, OSError, ValueError) as exc:
+        report["binaryOk"] = False
+        report["binaryError"] = str(exc)
+    print(json.dumps(report, indent=2))
+    if config.ready and report.get("binaryOk"):
+        return 0
+    return 2
 
 
 def cmd_keygen(path: str, key_id: str | None) -> int:

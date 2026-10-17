@@ -9,10 +9,11 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from rakathon_backend.web.clinical_context import FIELD_SOURCES as FIELD_SOURCES
-from rakathon_backend.web.clinical_context import context_for as context_for
-
 ROLES = ("koordinator", "pacient", "lekar", "mdt")
+FIELD_SOURCES = {
+    "record.coverage": "record-coverage",
+    "record.reportsSummary": "record-report-metadata",
+}
 TTL = 300
 
 
@@ -22,9 +23,126 @@ def canonical(value: Any) -> bytes:
     ).encode()
 
 
+def _label(concept: Any) -> str | None:
+    if not isinstance(concept, dict):
+        return None
+    text = concept.get("text")
+    if isinstance(text, str):
+        return text
+    for coding in concept.get("coding", []):
+        display = coding.get("display") if isinstance(coding, dict) else None
+        if isinstance(display, str):
+            return display
+    return None
+
+
+def _safe_title(title: Any, case: dict[str, Any]) -> bool:
+    if not isinstance(title, str) or not title.strip() or len(title) > 160:
+        return False
+    if re.search(
+        r"[<>]|https?://|\b\d{6,}\b|(?:Patient|Observation|DiagnosticReport|DocumentReference)/",
+        title,
+    ):
+        return False
+    patient = case["patient"]
+    private = [patient["id"]]
+    for name in patient.get("name", []):
+        private.extend([name.get("text", ""), name.get("family", ""), *name.get("given", [])])
+    private.extend(item.get("value", "") for item in patient.get("telecom", []))
+    for item in case["sections"]["conditions"]["items"]:
+        label = _label(item.get("code"))
+        if label:
+            private.append(label)
+    return not any(len(value) >= 3 and value.casefold() in title.casefold() for value in private)
+
+
+def _date(value: Any) -> str | None:
+    if isinstance(value, str) and re.fullmatch(
+        r"[0-9]{4}(?:-[0-9]{2}(?:-[0-9]{2}(?:T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2}))?)?)?",
+        value,
+    ):
+        return value
+    return None
+
+
+def _status(value: Any) -> str | None:
+    return (
+        value
+        if isinstance(value, str)
+        and value
+        in {
+            "registered",
+            "partial",
+            "preliminary",
+            "final",
+            "amended",
+            "corrected",
+            "appended",
+            "cancelled",
+            "entered-in-error",
+            "unknown",
+            "current",
+            "superseded",
+        }
+        else None
+    )
+
+
+def context_for(case: dict[str, Any], role: str) -> dict[str, Any]:
+    sections = case["sections"]
+    labels = {
+        "conditions": "Diagnózy",
+        "observations": "Pozorování",
+        "diagnosticReports": "Zprávy",
+        "documents": "Dokumenty",
+    }
+    coverage = "; ".join(
+        f"{label}: {'načteno' if sections[key]['status'] == 'complete' else 'nedostupné'}"
+        for key, label in labels.items()
+    )
+    fields = [{"key": "record.coverage", "source": "record-coverage", "value": coverage}]
+    reports = []
+    if role != "koordinator":
+        for item in sections["diagnosticReports"]["items"]:
+            title = _label(item.get("code"))
+            if _safe_title(title, case):
+                parts = [
+                    title,
+                    _date(item.get("issued")) or _date(item.get("effectiveDateTime")),
+                    _status(item.get("status")),
+                ]
+                reports.append(" · ".join(part for part in parts if isinstance(part, str)))
+        for item in sections["documents"]["items"]:
+            for content in item.get("content", []):
+                attachment = content.get("attachment", {})
+                title = attachment.get("title")
+                if _safe_title(title, case):
+                    parts = [
+                        title,
+                        _date(attachment.get("creation")) or _date(item.get("date")),
+                        _status(item.get("status")),
+                    ]
+                    reports.append(" · ".join(part for part in parts if isinstance(part, str)))
+        for value in reports[:3]:
+            if len(value) <= 320:
+                fields.append(
+                    {
+                        "key": "record.reportsSummary",
+                        "source": "record-report-metadata",
+                        "value": value,
+                    }
+                )
+    return {"role": role, "fields": fields}
+
+
 class SnapshotBindings:
-    def __init__(self, clock: Callable[[], float] = time.time) -> None:
-        self._key = secrets.token_bytes(32)
+    def __init__(self, clock: Callable[[], float] = time.time, *, key: bytes | None = None) -> None:
+        if key is not None:
+            if not isinstance(key, (bytes, bytearray)) or len(bytes(key)) != 32:
+                raise ValueError("binding key must be 32 bytes")
+            self._key = bytes(key)
+        else:
+            self._key = secrets.token_bytes(32)
         self.clock = clock
 
     def token(self, case: dict[str, Any], role: str, issued: int) -> str:

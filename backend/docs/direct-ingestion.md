@@ -1,8 +1,10 @@
 # Direct HTTP AI and bounded FHIR R4 ingestion
 
 The explicit `--ai direct` mode uses B5 authorization, kill switch, timeouts and
-cancellation with a direct HTTP transport. It is the only live provider mode;
-`--ai mock` remains the default offline demonstration. Shared timeouts are neutral.
+cancellation, but **no OpenCode process/session/harness**. `--ai opencode` remains
+an explicit legacy mode. `--ai mock` remains the default offline demonstration.
+Direct CLI/runtime imports also avoid OpenCode modules; only the explicitly
+selected legacy factory imports that package. Shared timeouts are neutral.
 Conversation uses a separate unstructured completion path; it never becomes a
 translation transaction. No browser HTTP/UI ingestion or assistant endpoint was
 added, and the read facade's assistant/ingestion capabilities remain false.
