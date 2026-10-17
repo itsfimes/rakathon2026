@@ -27,7 +27,7 @@ export function MeasurementCells({ v, shared, tags, source }: { readonly v: Meas
 export function MeasurementTable({ facts, sources, labelledBy }: { readonly facts: readonly ClinicalFact<MeasurementPayload>[]; readonly sources: readonly ClinicalSource[]; readonly labelledBy: string }) {
   const groups = measurementSessions(facts, fact => fact.value, fact => fact.effective)
   const shared = new Map(groups.map(group => [group.key, group.shared]))
-  return <GroupedTable labelledBy={labelledBy} caption={`Sezení měření v pořadí zdroje (${groups.length}). „—“ = ve zdroji neuvedeno.`} columns={MEASUREMENT_COLUMNS}
+  return <GroupedTable labelledBy={labelledBy} caption={``} columns={MEASUREMENT_COLUMNS}
     groups={groups} limit={SESSION_LIMIT} fold={SESSION_FOLD}
     row={(fact, group) => (
       <tr key={fact.id} className="lab-table__row">

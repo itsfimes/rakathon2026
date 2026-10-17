@@ -12,7 +12,6 @@ export function Table({ labelledBy, columns, caption, children }: TableProps) {
   return (
     <div className="table-wrap" role="region" aria-labelledby={labelledBy} tabIndex={0}>
       <table className="table table--stack">
-        {caption && <caption>{caption}</caption>}
         <thead><tr>{columns.map(column => <th key={column} scope="col">{column}</th>)}</tr></thead>
         <tbody>{children}</tbody>
       </table>

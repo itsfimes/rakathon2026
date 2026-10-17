@@ -11,7 +11,7 @@ export function projectWorkspace(dto: WorkspaceDTO): Workspace {
   }))
   return freezeClinicalSnapshot({ asOf: dto.fetchedAt, defaultCaseId: queue[0]?.caseId ?? null, queue,
     collectionCoverage: dto.coverage,
-    metadata: { provenance: 'Backend IRIS · single-user-development · čas načtení dat', origin: 'backend' },
+    metadata: { provenance: '', origin: 'backend' },
   })
 }
 export function projectCase(dto: CaseDTO): CaseDetail {

@@ -21,7 +21,6 @@ export function Panel({ id, title, icon, meta, aside, as: Tag = 'section', focus
       <div className="panel__head">
         <h2 className="panel__title" id={id} tabIndex={focusableTitle ? -1 : undefined}>{icon && <Icon name={icon} />}{title}</h2>
         {aside}
-        {meta && <p className="panel__meta">{meta}</p>}
       </div>
       {children}
     </Tag>

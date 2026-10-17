@@ -20,7 +20,7 @@ export function CoordinatorView({ workspace, detail, actions, route, onNavigate,
     return (
       <>
         <BackToList role="koordinator" label="Zpět na frontu případů" onReturn={onReturn} />
-        <ViewHead id="t-koordinator" icon="queue" title="Koordinátor: detail případu" lead={route.page === 'detail' ? SECTION_LABEL[section] : undefined} />
+        <ViewHead id="t-koordinator" icon="queue" title="Detail případu" lead={route.page === 'detail' ? SECTION_LABEL[section] : undefined} />
         {route.page !== 'detail' ? <InvalidCaseState /> : (
           <>
             <CaseSectionNav role="koordinator" caseId={route.caseId} section={section} onNavigate={onNavigate} />
@@ -46,7 +46,7 @@ export function CoordinatorView({ workspace, detail, actions, route, onNavigate,
     )
   }
   const lead = workspace.status === 'ready'
-    ? workspace.value.metadata.origin === 'backend' ? `Načteno ${formatDate(workspace.value.asOf)} · pořadí ze zdroje, priorita není zadána` : `Stav k ${formatDate(workspace.value.asOf)} · lhůty jsou ukázkové prahy, ne norma`
+    ? workspace.value.metadata.origin === 'backend' ? `` : ``
     : undefined
   return (
     <>

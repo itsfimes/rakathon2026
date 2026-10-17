@@ -65,15 +65,15 @@ export function AttentionPanel({ detail, role, onNavigate }: { readonly detail: 
   const id = `t-attention-${role}`
   if (!detail.clinical) {
     return (
-      <Panel id={id} icon="alert" title="Upozornění v záznamu">
+      <Panel id={id} icon="alert" title="Upozornění">
         <PanelBody><p className="placeholder-text">Rozšířený klinický záznam pro tento případ není k dispozici, proto zde nic není vyhodnoceno.</p></PanelBody>
       </Panel>
     )
   }
   const items = attentionItems(detail.clinical.domains)
   return (
-    <Panel id={id} icon="alert" title={<>Upozornění v záznamu <span className="tag tag--neutral">{items.length}</span></>}
-      meta="Rozpory, neznámé, nepotvrzené a předběžné údaje. Bez pořadí a bez klinického hodnocení.">
+    <Panel id={id} icon="alert" title={<>Upozornění<span className="tag tag--neutral">{items.length}</span></>}
+      meta="">
       <PanelBody>
         {items.length === 0 ? <p className="placeholder-text">Žádný rozpor ani nejistota nejsou v záznamu označeny.</p> : (
           <ul className="attention">

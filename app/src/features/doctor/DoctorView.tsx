@@ -25,8 +25,8 @@ type DoctorViewProps = RoleViewProps & ClinicianNavigation & {
 export function DoctorView({ workspace, detail, actions, route, onNavigate, onReturn, authed, uploads, uploadCaseId, mockMode }: DoctorViewProps) {
   const backend = workspace.status === 'ready' && workspace.value.metadata.origin === 'backend'
   const listLead = !backend ? 'Případy ze sdílené ukázkové fronty. Nejde o seznam vašich pacientů ani o přihlášení.'
-    : authed ? 'Případy ze zdroje IRIS. Přihlášení ověřuje server; nejde o seznam vašich pacientů.'
-    : 'Případy ze zdroje IRIS. Sdílený vývojový přístup, nikoli seznam vašich pacientů ani přihlášení.'
+    : authed ? '.'
+    : ''
   if (route.page === 'list') {
     return (
       <>
@@ -59,8 +59,7 @@ export function DoctorView({ workspace, detail, actions, route, onNavigate, onRe
                 <CaseSectionBody detail={value} role="lekar" section={section} overview={
                   <>
                     <LegacyProcessNote dates={[value.nextStep?.dueAt, value.nextStep?.requestedAt, value.identity.referredAt]} asOf={workspace.status === 'ready' ? workspace.value.asOf : null} />
-                    <p className="context-note"><Tag label={{ tone: 'warning', icon: 'clock', text: value.doctor.diagnosisStatus }} />
-                      Pohled odesílajícího lékaře. Nejde o roli ošetřujícího lékaře ani předsedy porady.</p>
+                    <p className="context-note"><Tag label={{ tone: 'warning', icon: 'clock', text: value.doctor.diagnosisStatus }} /></p>
                     <div className="split split--side-first">
                       <div className="stack">
                         <Panel id="t-ref" icon="arrow" title="Stav odeslání">

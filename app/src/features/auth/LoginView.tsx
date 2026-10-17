@@ -32,10 +32,10 @@ function demoProblemText(problem: AuthFailureKind): string {
 }
 
 const ROLE_HINT: Readonly<Record<DemoAccount, string>> = {
-  pacient: 'Co mě čeká, kdy a kde',
-  koordinator: 'Fronta případů a další kroky',
-  lekar: 'Odeslané případy a závěry',
-  mdt: 'Příprava a jednání komise',
+  pacient: '',
+  koordinator: '',
+  lekar: '',
+  mdt: '',
 }
 
 export function LoginView({ initialUsername, notice, problem, pending, disabled, onLogin, demoAccounts, demoPending, demoProblem, onDemoLogin }: LoginViewProps) {
@@ -56,9 +56,8 @@ export function LoginView({ initialUsername, notice, problem, pending, disabled,
   return (
     <main className="authgate" aria-labelledby="auth-title">
       {cards.length > 0 && (
-        <Panel id="demo-title" title="Ukázkové přihlášení" icon="team" meta="Jedním kliknutím">
+        <Panel id="demo-title" title="Demo účet" icon="team">
           <PanelBody>
-            <p className="authgate__lead">Vyberte si ukázkovou roli. Každé tlačítko rovnou přihlásí příslušný ukázkový účet.</p>
             {demoProblem && !demoPending && (
               <p className="authgate__error" role="alert">{demoProblemText(demoProblem)}</p>
             )}
@@ -81,15 +80,14 @@ export function LoginView({ initialUsername, notice, problem, pending, disabled,
           </PanelBody>
         </Panel>
       )}
-      <Panel id="auth-title" title="Přihlášení" icon="person" meta="Přístup ke sdílenému případu">
+      <Panel id="auth-title" title="Přihlášení" icon="person" meta="Přístup ke Atlasu">
         <PanelBody>
-          <p className="authgate__lead">Zadejte své přihlašovací jméno ve tvaru jméno.příjmení a heslo, které vám přidělil správce.</p>
           {notice && <Notice tone="info" icon="info" title="Oznámení" role="status"><p>{notice}</p></Notice>}
           {problem && !pending && (
             <p className="authgate__error" role="alert">{problemText(problem)}</p>
           )}
           <form onSubmit={submit} aria-label="Přihlašovací formulář">
-            <Field id="auth-username" label="Přihlašovací jméno (jméno.příjmení)">
+            <Field id="auth-username" label="Přihlašovací jméno">
               <Input
                 id="auth-username"
                 name="username"
@@ -121,7 +119,6 @@ export function LoginView({ initialUsername, notice, problem, pending, disabled,
               </button>
             </div>
           </form>
-          <p className="meta">Přístup zřizuje správce. Pokud údaje nemáte, obraťte se na něj.</p>
         </PanelBody>
       </Panel>
     </main>

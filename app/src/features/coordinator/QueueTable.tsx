@@ -30,7 +30,6 @@ function DueDate({ due, asOf }: { readonly due: string; readonly asOf: string | 
 export function QueueTable({ labelledBy, queue, onNavigate, asOf }: QueueTableProps) {
   return (
     <Table labelledBy={labelledBy}
-      caption={queue.every(item => item.nextStep === null) ? 'Pořadí ze zdroje dat; další kroky ani priority nejsou zadány.' : 'Pořadí řídí termín dalšího kroku a chybějící převzetí. Vyjadřuje naléhavost práce, ne zdravotní riziko.'}
       columns={['Pacient', 'Další krok · vlastník', 'Termín', 'Převzetí', 'Priorita', 'Úsek']}>
       {queue.map(item => {
         const route: Route = { view: 'koordinator', page: 'detail', caseId: item.caseId }

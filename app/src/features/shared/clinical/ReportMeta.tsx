@@ -31,7 +31,6 @@ export function ReportItems({ meta }: { readonly meta: ReportMetadata | undefine
       {count > 0 && (
         <ScopedDisclosure icon="file" summary={`Položky a přílohy zprávy (${count})`}>
           {items.length > 0 && <>
-            <p className="meta">Názvy položek uvedené ve zprávě. Hodnoty zde nejsou.</p>
             <ul className="plain-list">{items.map((item, index) => <li key={index}>{item}</li>)}</ul>
           </>}
           {attachments.length > 0 && <>

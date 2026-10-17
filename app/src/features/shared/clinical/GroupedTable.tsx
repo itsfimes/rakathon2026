@@ -42,7 +42,6 @@ export function GroupedTable<T>({ labelledBy, caption, columns, groups, row, lim
     <>
       <div className="table-wrap" role="region" aria-labelledby={labelledBy} tabIndex={0}>
         <table className="table lab-table">
-          <caption>{caption}</caption>
           <thead><tr>{columns.map(column => <th key={column.label} scope="col" className={column.numeric ? 'lab-table__num' : undefined}>{column.label}</th>)}</tr></thead>
           {folded.shown.map(group => (
             <tbody key={group.key}>

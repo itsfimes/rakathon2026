@@ -199,7 +199,7 @@ export function App({ boot, authed, lockedView, onLogout, loggingOut }: { readon
         </section>
       </main>
       <AssistantDialog open={assistantOpen} onClose={closeAssistant} assistant={assistant} view={view}
-        sourceLabel={session?.mode === 'backend' && session.connection ? session.connection === 'connected' ? 'Backend IRIS · vývojové připojení' : 'Backend IRIS · není dostupný' : undefined}
+        sourceLabel={session?.mode === 'backend' && session.connection ? session.connection === 'connected' ? 'Backend IRIS · ' : 'Backend IRIS · není dostupný' : undefined}
         mode={strip.kind} contextReason={contextReason} returnFocus={assistantTrigger} skipFocusRestore={skipFocusRestore} />
     </>
   )

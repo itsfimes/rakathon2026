@@ -91,7 +91,6 @@ function JobCard({ job, capability, caseId }: { readonly job: UploadJob; readonl
           onChanged={setLocalReview}
         />
       )}
-      <p className="meta">Originál je trvale uložený. Balíček obsahuje přesný originál i výstupy ke kontrole.</p>
     </li>
   )
 }
@@ -178,7 +177,6 @@ export function UploadPanel({ capability, caseId, mockMode }: UploadPanelProps) 
           </section>
         )}
         {uploads.busy && <p className="meta" role="status">Odesílám soubor…</p>}
-        <p className="example-note"><Icon name="info" small />Výstupy jsou jen kandidáti ke kontrole. Nic se samo nezapisuje do záznamu případu.</p>
       </PanelBody>
     </Panel>
   )

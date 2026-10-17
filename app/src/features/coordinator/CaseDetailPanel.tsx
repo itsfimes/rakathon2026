@@ -24,7 +24,7 @@ export function CaseDetailPanel({ detail, actions }: { readonly detail: CaseDeta
   const { identity, nextStep } = detail
   const canAccept = nextStep && actions.available && (nextStep.acknowledgement === 'pending' || nextStep.acknowledgement === 'new')
   return (
-    <Panel as="article" id="t-case" icon="queue" title="Proces případu" meta="Pořadí a lhůty vyjadřují organizaci práce, ne zdravotní riziko.">
+    <Panel as="article" id="t-case" icon="queue" title="Proces případu" meta="">
       <PanelBody className="case">
         <section className="case-task" aria-labelledby="ns-k">
           <h3 className="label case-task__label"><Icon name="arrow" small />Další krok</h3>
@@ -49,7 +49,6 @@ export function CaseDetailPanel({ detail, actions }: { readonly detail: CaseDeta
         </section>
 
         <section className="case-section" aria-labelledby="t-case-docs">
-          <h3 className="label case-section__label" id="t-case-docs">Podklady <span className="case-section__count">· {documentSummary(detail.documents)}</span></h3>
           <DocumentEvidence documents={detail.documents} coordinatorLabels />
         </section>
 
@@ -59,12 +58,12 @@ export function CaseDetailPanel({ detail, actions }: { readonly detail: CaseDeta
         </section>
 
         <section className="case-unavailable" aria-labelledby="t-case-unavailable">
-          <h3 className="label" id="t-case-unavailable">Komunikace (zatím nepřipojeno)</h3>
+          <h3 className="label" id="t-case-unavailable">Komunikace</h3>
           <ButtonRow>
             <Button variant="secondary" disabled aria-describedby="note-k">Urgovat vlastníka kroku</Button>
             <Button variant="secondary" disabled aria-describedby="note-k">Informovat odesílajícího lékaře</Button>
           </ButtonRow>
-          <UnavailableNote id="note-k" />
+          <UnavailableNote/>
         </section>
       </PanelBody>
     </Panel>
