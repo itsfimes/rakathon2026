@@ -12,22 +12,15 @@ interface AppBarProps {
   readonly assistantOpen: boolean
   readonly onAssistant: () => void
   readonly assistantRef: RefObject<HTMLButtonElement | null>
-  /** In-page jump to the disclaimer; never rewrites the route. */
-  readonly onAbout: () => void
 }
 
 const VIEW_LABEL = new Map<ViewId, string>(VIEW_LINKS.map(item => [item.id, item.label]))
 
-export const AppBar = forwardRef<HTMLElement, AppBarProps>(function AppBar({ view, asOf, demo, assistantOpen, onAssistant, assistantRef, onAbout }, ref) {
+export const AppBar = forwardRef<HTMLElement, AppBarProps>(function AppBar({ view, asOf, demo, assistantOpen, onAssistant, assistantRef }, ref) {
   return (
     <header ref={ref} className="appbar">
       <div className="appbar__row">
-        <p className="brand"><Icon name="case" />Sdílený případ</p>
-        <a className="demo-tag" href="#o-ukazce" onClick={event => {
-          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-          event.preventDefault()
-          onAbout()
-        }}><Icon name="info" small />{demo ? 'Ukázka · smyšlená data' : 'O aplikaci'}</a>
+        <p className="brand"><Icon name="case" />Atlas</p>
         <p className="appbar__role"><Icon name="person" small />Pohled: {VIEW_LABEL.get(view) ?? view}</p>
         {asOf && <span className="appbar__date">{demo ? 'Stav k' : 'Načteno'} {formatDate(asOf)}</span>}
         <button type="button" ref={assistantRef} className="appbar__assist" aria-haspopup="dialog" aria-expanded={assistantOpen} onClick={onAssistant}>

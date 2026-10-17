@@ -2,33 +2,21 @@
    Breakpoints are static (CSS variables cannot be used in media queries):
    1100px = work area becomes one column; 760px = mobile shell; 380px = narrow phone. */
 @layer layout {
-  /* Data-source strip: always sticky at the very top, on every screen and state */
-  .mode-strip { position: sticky; top: 0; z-index: var(--z-mode); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-3); padding: var(--s-1) var(--s-5); border-bottom: var(--border) solid var(--c-mode-line); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
-  .mode-strip--mock { background: var(--c-mode-mock-bg); color: var(--c-mode-mock-ink); }
-  .mode-strip--backend { background: var(--c-mode-backend-bg); color: var(--c-mode-backend-ink); }
-  .mode-strip--error { background: var(--c-mode-error-bg); color: var(--c-mode-error-ink); }
-  .mode-strip__label { display: inline-flex; align-items: center; gap: var(--s-2); }
-  .mode-strip__detail { font-weight: var(--fw-regular); }
-  .mode-strip__actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2); }
-  .mode-strip .btn { min-height: var(--target-min); padding-block: 0; background: var(--c-surface); color: var(--c-ink); border-color: var(--c-surface); font-size: var(--fs-xs); }
-  .mode-strip .btn:hover { background: var(--c-surface-sunken); }
-  .mode-strip .btn:focus-visible { outline-color: var(--c-surface); }
-  .mode-strip__status { font-weight: var(--fw-regular); flex-basis: 100%; }
-  .mode-strip__status:empty { display: none; }
+  /* Data-source strip: hidden for rapid iteration. */
+  .mode-strip { display: none; }
 
   /* App bar */
-  .appbar { position: sticky; top: var(--mode-strip-h); z-index: var(--z-sticky); background: var(--c-surface); border-bottom: var(--border) solid var(--c-line); }
+  .appbar { position: sticky; top: 0; z-index: var(--z-sticky); background: var(--c-surface); border-bottom: var(--border) solid var(--c-line); }
   .appbar__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4); padding: var(--s-2) var(--s-5); }
   .brand { display: flex; align-items: center; gap: var(--s-2); font-weight: var(--fw-bold); font-size: var(--fs-md); margin-right: var(--s-2); }
   .brand .icon { color: var(--c-accent); width: var(--icon-brand); height: var(--icon-brand); }
-  .demo-tag { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--c-ink-muted); display: inline-flex; gap: var(--s-1); align-items: center; }
   .appbar__role { display: inline-flex; align-items: center; gap: var(--s-1); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--c-ink); margin: 0; }
   .roles { flex: 1 1 auto; min-width: 0; display: flex; gap: var(--s-3); align-items: center; }
   .roles__scroll { overflow-x: auto; max-width: 100%; padding: calc(var(--focus-width) + var(--border)); }
   .appbar__date { color: var(--c-ink-muted); font-size: var(--fs-xs); margin-left: auto; }
 
-  /* Skip/deep-link targets clear both sticky bars */
-  .content, .view, .view__title, .content [id] { scroll-margin-top: calc(var(--mode-strip-h) + var(--appbar-h) + var(--s-3)); }
+  /* Skip/deep-link targets clear the sticky app bar only. */
+  .content, .view, .view__title, .content [id] { scroll-margin-top: calc(var(--appbar-h) + var(--s-3)); }
 
   .content { padding: var(--s-5); display: grid; gap: var(--s-7); max-width: var(--content-max); margin: 0 auto; }
   .view__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-2) var(--s-4); margin-bottom: var(--s-4); }
@@ -89,21 +77,10 @@
   .icon-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--icon-list-min), 1fr)); gap: var(--s-2); font-size: var(--fs-xs); }
   .icon-list li { display: flex; gap: var(--s-2); align-items: center; }
 
-  /* Footer disclaimer */
-  .about { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--s-5) var(--s-6); }
-  .about .disclosure { background: var(--c-surface); }
-
   @media (max-width: 1100px) {
     .split { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 760px) {
-    /* Compact strip on phones: label + icon-only reset (name kept for assistive tech). */
-    .mode-strip { padding: var(--s-1) var(--s-3); flex-wrap: nowrap; }
-    .mode-strip__detail { display: none; }
-    .mode-strip__btn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-    .mode-strip .btn { min-width: var(--target-touch); padding: 0; }
-    .mode-strip:has(.mode-strip__status:not(:empty)) { flex-wrap: wrap; }
-    /* App bar scrolls away on phones; only the data-source strip stays pinned. */
     .appbar { position: static; }
     .content, .view, .view__title, .content [id] { scroll-margin-top: calc(var(--mode-strip-h) + var(--s-2)); }
     .appbar__row { padding: var(--s-2) var(--s-3); gap: var(--s-1) var(--s-3); }
@@ -117,7 +94,6 @@
     .roles .segmented [aria-current="page"] { background: var(--c-accent); color: var(--c-accent-ink); }
     .segmented__item { min-height: var(--target-touch); padding: 0 var(--s-3); }
     .content { padding: var(--s-3); gap: var(--s-6); }
-    .about { padding: 0 var(--s-3) var(--s-5); }
     .btn, .disclosure summary { min-height: var(--target-touch); }
     .table--stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
     .table--stack, .table--stack tbody, .table--stack tr, .table--stack td { display: block; }

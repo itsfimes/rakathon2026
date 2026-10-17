@@ -259,8 +259,8 @@ No real AI is currently implemented. Research/limits: `../assistant-research.md`
 - `src/components/ui/` — primitives, one per file: Panel, Button, Tag, Notice, Disclosure, Facts,
   StepBar (+MiniSteps), NextStep, Checklist, Cells, Timeline, CalendarTile, Table/StackCell,
   Field/Input/Select, Segmented (links/radios), Skeleton, Avatar.
-- `src/components/shell/` — ModeStrip (persistent data-source strip), AppBar, ViewHead,
-  DataState (loading/error/empty), CaseGate, AboutFooter.
+- `src/components/shell/` — ModeStrip (data-source strip), AppBar, ViewHead,
+  DataState (loading/error/empty), CaseGate.
 - `src/features/{coordinator,patient,doctor,mdt,specimen}` — role compositions and their panels;
   `features/shared` holds cross-role task/document pieces. Specimen is a design tool, not a role,
   and contains no case data.

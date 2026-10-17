@@ -72,7 +72,7 @@ describe('mock mode banner', () => {
     cleanup()
 
     render(<App boot={mockBoot()} />)
-    for (const hash of ['koordinator', 'pacient', 'lekar', 'mdt', 'specimen', 'obsah', 'o-ukazce']) {
+    for (const hash of ['koordinator', 'pacient', 'lekar', 'mdt', 'specimen', 'obsah']) {
       await go(hash)
       expect(screen.getByText(MOCK_BANNER)).toBeInTheDocument()
     }
@@ -302,9 +302,6 @@ describe('patient graphics and keyboard', () => {
     await user.keyboard('{Enter}')
     expect(document.getElementById('obsah')).toHaveFocus()
     expect(window.location.hash).toBe('#lekar/case/novak')
-    await user.click(screen.getByRole('link', { name: /Ukázka · smyšlená data/ }))
-    expect(window.location.hash).toBe('#lekar/case/novak')
-    expect(document.querySelector('#o-ukazce details')).toHaveAttribute('open')
   })
 })
 

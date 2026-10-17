@@ -7,7 +7,6 @@ import { isAssistantRole } from './assistant/validation'
 import { AssistantDialog } from './features/assistant/AssistantDialog'
 import { DetailScopeProvider } from './features/shared/detailScope'
 import { IconSprite } from './icons/IconSprite'
-import { AboutFooter } from './components/shell/AboutFooter'
 import { AppBar } from './components/shell/AppBar'
 import { ModeStrip } from './components/shell/ModeStrip'
 import { InvalidViewState } from './components/shell/DataState'
@@ -111,24 +110,11 @@ export function App({ boot, authed, lockedView }: { readonly boot: Promise<Boots
     return () => cancelAnimationFrame(frame)
   }, [navigated, navigationId, focus, restoration, view, workspaceReady])
 
-  // In-page anchors (#obsah, #o-ukazce) only move focus/scroll; the route hash is never rewritten.
-  const [aboutOpen, setAboutOpen] = useState(() => window.location.hash === '#o-ukazce')
-  const showAbout = useCallback(() => {
-    setAboutOpen(true)
-    const footer = document.getElementById('o-ukazce')
-    footer?.scrollIntoView({ block: 'start' })
-    footer?.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true })
-  }, [setAboutOpen])
+  // In-page anchor (#obsah) only moves focus/scroll; the route hash is never rewritten.
   const skipToContent = useCallback(() => {
     const content = document.getElementById('obsah')
     content?.scrollIntoView({ block: 'start' })
     content?.focus({ preventScroll: true })
-  }, [])
-  useEffect(() => {
-    // Legacy typed or external fragments: open the disclaimer; the in-memory route stays as it is.
-    const sync = () => { if (window.location.hash === '#o-ukazce') setAboutOpen(true) }
-    window.addEventListener('hashchange', sync)
-    return () => window.removeEventListener('hashchange', sync)
   }, [])
 
   // Assistant: in-memory only. resetKey bumps synchronously at reset START (before the demo
@@ -201,8 +187,7 @@ export function App({ boot, authed, lockedView }: { readonly boot: Promise<Boots
       <a className="skip-link" href="#obsah" onClick={event => { if (!isPlainActivation(event)) return; event.preventDefault(); skipToContent() }}>Přeskočit na obsah</a>
       <ModeStrip ref={stripRef} state={strip} feedback={actions.feedback} />
       <AppBar ref={appbarRef} view={view} asOf={workspace.status === 'ready' ? workspace.value.asOf : null} demo={session?.mode === 'mock'}
-        assistantOpen={assistantOpen} onAssistant={() => { setRouteClosed(false); setAssistantOpen(true) }} assistantRef={assistantTrigger}
-        onAbout={showAbout} />
+        assistantOpen={assistantOpen} onAssistant={() => { setRouteClosed(false); setAssistantOpen(true) }} assistantRef={assistantTrigger} />
       <main id="obsah" className="content" tabIndex={-1}>
         <section className={view === 'pacient' ? 'view view--patient' : 'view'} id={view} aria-labelledby={`t-${view}`}>
           <DetailScopeProvider value={detailScope}>{route.page === 'invalid-view'
@@ -210,7 +195,6 @@ export function App({ boot, authed, lockedView }: { readonly boot: Promise<Boots
             : views[view]}</DetailScopeProvider>
         </section>
       </main>
-      <AboutFooter demo={session?.mode === 'mock'} authed={authed} serverAssistant={session?.mode === 'backend' && session.assistant.availability === 'available' && session.assistant.provenance === 'server'} open={aboutOpen} onOpenChange={setAboutOpen} />
       <AssistantDialog open={assistantOpen} onClose={closeAssistant} assistant={assistant} view={view}
         sourceLabel={session?.mode === 'backend' && session.connection ? session.connection === 'connected' ? 'Backend IRIS · vývojové připojení' : 'Backend IRIS · není dostupný' : undefined}
         mode={strip.kind} contextReason={contextReason} returnFocus={assistantTrigger} skipFocusRestore={skipFocusRestore} />
