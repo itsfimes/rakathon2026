@@ -40,8 +40,9 @@ The chat/completions suffix is appended once; no deployments/api-version rewrite
 Loopback HTTP and no-auth are accepted only with explicit
 `RAKATHON_AI_ALLOW_LOOPBACK=1`, a literal loopback address and explicit port.
 Requests advertise `Accept-Encoding: identity`; compressed responses are rejected
-rather than decoded without a bound. Maximum request/content sizes are 1 MiB,
-provider response 2 MiB. No tool calls, refusal, non-stop finish, null content,
+rather than decoded without a bound. Maximum request size is 4 MiB (including
+JSON escaping); maximum content size is 1 MiB, provider response 2 MiB.
+No tool calls, refusal, non-stop finish, null content,
 duplicate JSON keys, NaN, Markdown extraction, JSON repair or fallback format.
 Providers must support the supplied strict JSON-schema response format or fail.
 

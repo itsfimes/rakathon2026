@@ -248,8 +248,9 @@ error, never deduplicated around the budget), max1MiB decoded page body and
 nested arrays retain50. Observation root-plus-component fact fanout is preflighted
 at1000 before projected facts allocate. Projected observations256KiB, each other
 section192KiB, Patient64KiB (896KiB combined section/patient budgets),
-final B2 IPC envelope and HTTP/browser body remain below1MiB. Assistant previews
-and bindings remain included in the final response bound.
+final B2 read reply and HTTP/browser body remain below1MiB. Assistant context is
+assembled separately on the server and has the independent limits above; no
+previews or bindings are attached to case responses.
 
 Collection deadline6s; every blocking HTTP phase is at most0.5s or remaining
 budget, and streamed chunks/page transitions check deadline/cancellation. Existing

@@ -90,7 +90,12 @@ async def collect_patient_context(
     read: Read, case_id: str, uploads: UploadStore | None = None
 ) -> dict[str, Any]:
     # This is the same human-identity Patient read used by GET case, before fanout or uploads.
-    patients = _resources(await read({"resourceType": "Patient", "id": case_id}))
+    try:
+        patients = _resources(await read({"resourceType": "Patient", "id": case_id}))
+    except ContractError as exc:
+        if failure_metadata(exc)["reason"] == "resource_limit":
+            raise context_too_large() from exc
+        raise
     if not patients:
         raise WebError(404, "not_found", "Case not found")
     if len(patients) != 1:
