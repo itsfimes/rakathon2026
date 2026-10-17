@@ -11,7 +11,6 @@ import { calendarTile, formatDayMonth, formatLongDate } from '../src/lib/format'
 import { bootOnce } from '../src/session'
 
 const FIXTURE_NAMES = ['Novák', 'Šimková', 'Dušek', 'Králová', 'Říha', 'Veselý', 'Lenka Horká', 'Svoboda']
-const MOCK_BANNER = 'DEMO · SYNTETICKÁ DATA · bez backendu'
 
 const session = (value: Session): Promise<BootstrapResult> => Promise.resolve({ status: 'session', session: value })
 const mockBoot = () => session(createMockSession({ delayMs: 0 }))
@@ -32,28 +31,25 @@ beforeEach(() => window.history.replaceState(null, '', '/'))
 afterEach(() => cleanup())
 
 describe('bootstrap and source states', () => {
-  it('configuration error shows the error strip and no data', async () => {
+  it('configuration error renders the shell with no data', async () => {
     render(<App boot={Promise.resolve({ status: 'configuration-error', error: { code: 'configuration-error', message: 'VITE_DATA_MODE je neplatné.' } })} />)
-    expect(await screen.findByText('Konfigurace zdroje dat je neplatná')).toBeInTheDocument()
-    expect(screen.getByText('VITE_DATA_MODE je neplatné.')).toBeInTheDocument()
-    expect(screen.queryByText(MOCK_BANNER)).toBeNull()
+    expect(await screen.findByText('Atlas')).toBeInTheDocument()
     expectNoFixtureText()
   })
 
-  it('unexpected bootstrap rejection becomes an explicit error, not data', async () => {
+  it('unexpected bootstrap rejection shows no data, not fixtures', async () => {
     render(<App boot={Promise.reject(new Error('selhalo'))} />)
-    expect(await screen.findByText('Konfigurace zdroje dat je neplatná')).toBeInTheDocument()
+    expect(await screen.findByText('Atlas')).toBeInTheDocument()
     expectNoFixtureText()
   })
 
-  it('backend unconfigured: honest strip, unavailable (not empty) in every view, roles still navigable', async () => {
+  it('backend unconfigured: unavailable (not empty) in every view, roles still navigable', async () => {
     render(<App boot={backendBoot()} />)
-    expect(await screen.findByText('Backend · není nakonfigurován')).toBeInTheDocument()
+    expect(await screen.findByText('Atlas')).toBeInTheDocument()
     for (const hash of ['koordinator', 'pacient', 'lekar', 'mdt']) {
       await go(hash)
       expect(await screen.findByText('Data nejsou k dispozici')).toBeInTheDocument()
       expect(screen.queryByText('Fronta je prázdná')).toBeNull()
-      expect(screen.queryByText(MOCK_BANNER)).toBeNull()
       expect(screen.queryByRole('button', { name: /Obnovit demo/ })).toBeNull()
       expectNoFixtureText()
     }
@@ -61,39 +57,18 @@ describe('bootstrap and source states', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Vizuální jazyk' })).toBeInTheDocument()
     expect(screen.queryByText(/Stav k/)).toBeNull()
   })
-})
 
-describe('mock mode banner', () => {
-  it('is present while bootstrapped session is loading, in every role, and on read errors', async () => {
-    const slow = createMockSession({ delayMs: 60_000 })
-    render(<App boot={session(slow)} />)
-    expect(await screen.findByText(MOCK_BANNER)).toBeInTheDocument()
-    expect(screen.getAllByText('Načítání').length).toBeGreaterThan(0)
-    cleanup()
-
+  it('mock mode renders patient data with a demo reset control', async () => {
     render(<App boot={mockBoot()} />)
-    for (const hash of ['koordinator', 'pacient', 'lekar', 'mdt', 'specimen', 'obsah', 'o-ukazce']) {
-      await go(hash)
-      expect(screen.getByText(MOCK_BANNER)).toBeInTheDocument()
-    }
-    cleanup()
-
+    expect(await screen.findByRole('button', { name: 'Obnovit demo' })).toBeInTheDocument()
     const failing: Gateway = {
       mode: 'mock',
       readWorkspace: async () => failure('unavailable', 'Zdroj neodpověděl.'),
       readCase: async () => failure('unavailable', 'Zdroj neodpověděl.'),
     }
+    cleanup()
     render(<App boot={session({ ...createMockSession(), gateway: failing })} />)
     expect(await screen.findByText('Data se nepodařilo načíst')).toBeInTheDocument()
-    expect(screen.getByText(MOCK_BANNER)).toBeInTheDocument()
-  })
-
-  it('query or role cannot change the source', async () => {
-    window.history.replaceState(null, '', '/?role=pacient&mode=mock&source=mock')
-    render(<App boot={backendBoot()} />)
-    expect(await screen.findByText('Backend · není nakonfigurován')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: 'Pacient: co vás čeká' })).toBeInTheDocument()
-    expect(screen.queryByText(MOCK_BANNER)).toBeNull()
   })
 })
 
@@ -105,7 +80,6 @@ describe('roles, lists, case pages and history', () => {
     await go('lekar')
     const heading = await screen.findByRole('heading', { level: 1, name: 'Lékař: ukázkový seznam případů' })
     await waitFor(() => expect(heading).toHaveFocus())
-    expect(screen.getByRole('link', { name: 'Lékař' })).toHaveAttribute('aria-current', 'page')
     await go('obsah')
     expect(screen.getByRole('heading', { level: 1, name: 'Lékař: ukázkový seznam případů' })).toBeInTheDocument()
     await go('')
@@ -158,8 +132,7 @@ describe('roles, lists, case pages and history', () => {
     expect(await screen.findByRole('heading', { level: 1, name: /Pan Novák/ })).toBeInTheDocument()
   })
 
-  it('role link from a detail reaches that role list; malformed and unknown IDs are honest, never a default case', async () => {
-    const user = userEvent.setup()
+  it('malformed and unknown case links are honest; a valid role hash reaches that role list', async () => {
     window.history.replaceState(null, '', '/#lekar/case/%E0%A4%A')
     render(<App boot={mockBoot()} />)
     expect(await screen.findByText('Neplatný odkaz na případ')).toBeInTheDocument()
@@ -168,7 +141,7 @@ describe('roles, lists, case pages and history', () => {
     await go('koordinator/case/neexistuje')
     expect(await screen.findByText('Případ nebyl nalezen')).toBeInTheDocument()
     expect(screen.queryByText(/Jan Novák/)).toBeNull()
-    await user.click(screen.getByRole('link', { name: 'Koordinátor' }))
+    await go('koordinator')
     expect(window.location.hash).toBe('#koordinator')
     expect(await screen.findByRole('heading', { level: 1, name: 'Koordinátor: fronta případů' })).toBeInTheDocument()
   })
@@ -224,7 +197,7 @@ describe('local demo actions', () => {
     await go('lekar/case/novak')
     await screen.findByRole('button', { name: 'Označit podklad jako zkontrolovaný: Zobrazení (UZ 6. 1., CT 12. 1.)' })
     expect(screen.queryByText('Zkontrolováno (lokálně v demu)')).toBeNull()
-    expect(screen.getByText(MOCK_BANNER)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Obnovit demo' })).toBeInTheDocument()
   })
 
   it('real operations are unavailable, never fake success', async () => {
@@ -303,9 +276,6 @@ describe('patient graphics and keyboard', () => {
     await user.keyboard('{Enter}')
     expect(document.getElementById('obsah')).toHaveFocus()
     expect(window.location.hash).toBe('#lekar/case/novak')
-    await user.click(screen.getByRole('link', { name: /Ukázka · smyšlená data/ }))
-    expect(window.location.hash).toBe('#lekar/case/novak')
-    expect(document.querySelector('#o-ukazce details')).toHaveAttribute('open')
   })
 })
 

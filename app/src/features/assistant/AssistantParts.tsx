@@ -3,10 +3,9 @@ import { ASSISTANT_SOURCE_LABELS } from '../../assistant/contracts'
 import type { AssistantContext } from '../../assistant/contracts'
 import type { AssistantMessage } from '../../assistant/useAssistant'
 import { Icon } from '../../icons/Icon'
-import { provenanceText } from './labels'
 
-/** Conversation: user turns as right-aligned bubbles, replies as plain text with provenance and fixed source labels. */
-export function Transcript({ messages, available, scripted }: { readonly messages: readonly AssistantMessage[]; readonly available: boolean; readonly scripted: boolean }) {
+/** Conversation: user turns as right-aligned bubbles, replies as plain text with fixed source labels. */
+export function Transcript({ messages, available }: { readonly messages: readonly AssistantMessage[]; readonly available: boolean }) {
   if (messages.length === 0) {
     return (
       <div className="assistant-empty">
@@ -14,9 +13,7 @@ export function Transcript({ messages, available, scripted }: { readonly message
         <p className="assistant-empty__title">{available ? 'Na co se chcete zeptat?' : 'Asistent není připojen'}</p>
         <p className="assistant-empty__text">
           {available
-            ? scripted
-              ? 'Tahle ukázka umí jen nabízený dotaz níže. Zopakuje údaje případu, které sami připojíte.'
-              : 'Odpovídá jen na základě údajů, které sami připojíte.'
+            ? 'Odpovídá jen na základě údajů, které sami připojíte.'
             : 'Nic se neodesílá a žádné odpovědi nevznikají. Zbytek aplikace funguje dál.'}
         </p>
       </div>
@@ -27,7 +24,6 @@ export function Transcript({ messages, available, scripted }: { readonly message
       {messages.map((message, index) => message.kind === 'user'
         ? <li key={index} className="assistant-turn assistant-turn--user"><span className="visually-hidden">Vy: </span><p>{message.text}</p></li>
         : <li key={index} className="assistant-turn">
-          <p className="assistant-turn__by"><Icon name="help" small />{provenanceText(message.reply.provenance)}</p>
           <p className="assistant-turn__text">{message.reply.text}</p>
           {message.reply.sources.length > 0 && <p className="assistant-turn__sources">{message.reply.provenance === 'server' ? 'Předaný kontext: ' : 'Zdroj: '}{message.reply.sources.map(source => ASSISTANT_SOURCE_LABELS[source]).join(', ')}</p>}
         </li>)}

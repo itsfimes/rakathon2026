@@ -7,7 +7,7 @@ const assistantSentinel = 'RAKATHON_SCRIPTED_ASSISTANT_V1'
 const forbidden = [
   sentinel, assistantSentinel, /(?:src\/data|\.\.\/data|data)\/mock\//,
   /mock\/(?:provider|fixtures|assistant)\.[jt]s/,
-  'Tento volný dotaz skriptovaná ukázka nepodporuje.',
+  'Tento volný dotaz asistent nepodporuje.',
   'Pro tento přehled nejprve výslovně zapněte sdílení',
   'Jan Novák', 'Alena Šimková', 'Tomáš Dušek', 'Marie Králová', 'Pavel Říha', 'Karel Veselý',
   'MUDr. Petr Svoboda', 'MUDr. Jana Veselá', 'Lenka Horká',

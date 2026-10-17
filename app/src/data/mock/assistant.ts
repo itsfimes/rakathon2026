@@ -15,7 +15,7 @@ export function createScriptedAssistant(): Assistant {
       const supported = ASSISTANT_PROMPTS[request.role].includes(request.text)
       let text: string
       if (!supported) {
-        text = 'Tento volný dotaz skriptovaná ukázka nepodporuje. Použijte přesně nabízený dotaz; nejde o skutečnou AI.'
+        text = 'Tento volný dotaz asistent nepodporuje. Použijte přesně nabízený dotaz.'
       } else if (!request.context) {
         text = 'Pro tento přehled nejprve výslovně zapněte sdílení zobrazeného náhledu kontextu. Bez něj nečtu žádný případ.'
       } else {
@@ -24,7 +24,7 @@ export function createScriptedAssistant(): Assistant {
       const sources = supported && request.context ? [...new Set(request.context.fields.map(field => field.source))] : []
       return { ok: true, value: {
         provenance: 'scripted',
-        text: `Skriptovaná ukázka, nikoli AI.\n${text}\nPouze opis dodaných údajů; bez klinického posouzení, určení priority nebo schválení termínu.`,
+        text: `${text}\nPouze opis dodaných údajů; bez klinického posouzení, určení priority nebo schválení termínu.`,
         sources,
       } }
     },

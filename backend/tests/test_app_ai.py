@@ -27,20 +27,15 @@ class _FakeAdapter:
     async def translate(self, data: bytes, content_type: str) -> dict[str, Any]:
         _ = (data, content_type)
         self.calls += 1
-        return {"answer": "fake", "mode": "opencode", "synthetic": False}
+        return {"answer": "fake", "mode": "direct", "synthetic": False}
 
     async def complete(self, data: bytes, content_type: str) -> dict[str, Any]:
         _ = (data, content_type)
         self.calls += 1
-        return {"answer": "fake", "mode": "opencode", "synthetic": False}
+        return {"answer": "fake", "mode": "direct", "synthetic": False}
 
     async def close(self) -> None:
         self.closed = True
-
-
-def test_opencode_mode_requires_adapter() -> None:
-    with pytest.raises(ValueError):
-        BackendApp(_runtime_dir(), fresh_tokens(), ai_mode="opencode")
 
 
 def test_bad_ai_mode_rejected() -> None:
@@ -55,13 +50,13 @@ def test_bad_watchdog_interval_rejected() -> None:
 
 async def test_injected_adapter_and_mode() -> None:
     adapter = _FakeAdapter()
-    app = BackendApp(_runtime_dir(), fresh_tokens(), ai_adapter=adapter, ai_mode="opencode")
-    assert app.ai_mode == "opencode"
+    app = BackendApp(_runtime_dir(), fresh_tokens(), ai_adapter=adapter, ai_mode="direct")
+    assert app.ai_mode == "direct"
     assert app.kill_switch.allow_remote is True
     await app.start()
     try:
         assert app.gateway is not None
-        assert app.gateway.mode == "opencode"
+        assert app.gateway.mode == "direct"
     finally:
         await app.close()
     assert adapter.closed is True
@@ -69,7 +64,7 @@ async def test_injected_adapter_and_mode() -> None:
 
 async def test_close_trips_gateway_and_closes_adapter() -> None:
     adapter = _FakeAdapter()
-    app = BackendApp(_runtime_dir(), fresh_tokens(), ai_adapter=adapter, ai_mode="opencode")
+    app = BackendApp(_runtime_dir(), fresh_tokens(), ai_adapter=adapter, ai_mode="direct")
     await app.start()
     await app.close()
     assert adapter.closed is True
@@ -95,7 +90,7 @@ async def test_kill_file_monitor_trips_running_gateway(
     kill_file = tmp_path / "kill-ai"
     adapter = _FakeAdapter()
     app = BackendApp(
-        _runtime_dir(), fresh_tokens(), ai_adapter=adapter, ai_mode="opencode", kill_file=kill_file
+        _runtime_dir(), fresh_tokens(), ai_adapter=adapter, ai_mode="direct", kill_file=kill_file
     )
     await app.start()
     try:
@@ -134,7 +129,7 @@ async def test_b5_shutdown_closes_adapter() -> None:
 async def test_ai_disabled_env_trips_gateway(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_module, "KILL_POLL_SECONDS", 0.05)
     adapter = _FakeAdapter()
-    app = BackendApp(_runtime_dir(), fresh_tokens(), ai_adapter=adapter, ai_mode="opencode")
+    app = BackendApp(_runtime_dir(), fresh_tokens(), ai_adapter=adapter, ai_mode="direct")
     await app.start()
     try:
         monkeypatch.setenv("AI_DISABLED", "1")

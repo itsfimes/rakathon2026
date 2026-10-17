@@ -65,9 +65,9 @@ class BackendApp:
         auth: Any | None = None,
     ) -> None:
         if ai_mode not in AI_MODES:
-            raise ValueError("ai_mode must be mock, opencode or direct")
+            raise ValueError("ai_mode must be mock or direct")
         if ai_mode != "mock" and ai_adapter is None:
-            raise ValueError("opencode ai_mode requires an explicit adapter")
+            raise ValueError("direct ai_mode requires an explicit adapter")
         if watchdog_interval is not None and not (
             MIN_WATCHDOG_INTERVAL <= watchdog_interval <= MAX_WATCHDOG_INTERVAL
         ):

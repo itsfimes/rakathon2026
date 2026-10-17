@@ -22,7 +22,6 @@ from rakathon_backend.common.errors import AuthError, ContractError, TransportEr
 from rakathon_backend.common.fhir import is_manual_review, resource_counts
 from rakathon_backend.common.kinds import request_kind
 from rakathon_backend.common.rpc import make_client, new_envelope
-from rakathon_backend.runtime.ai_factory import ai_config_from_env, start_ai_adapter
 from rakathon_backend.runtime.application import BackendApp, fresh_tokens
 from rakathon_backend.runtime.iris_fhir import build_iris_fhir_app
 from rakathon_backend.runtime.paths import short_runtime
@@ -101,8 +100,8 @@ async def cmd_ingest_file(args: argparse.Namespace) -> int:
     if not user:
         return _error("user is required")
     ai_mode = str(getattr(args, "ai", "mock") or "mock")
-    if ai_mode not in ("mock", "opencode", "direct"):
-        return _error("ai mode must be mock, opencode or direct")
+    if ai_mode not in ("mock", "direct"):
+        return _error("ai mode must be mock or direct")
     if getattr(args, "storage", "mock") != "mock":
         return _error("live_import_not_configured")
     try:
@@ -121,19 +120,6 @@ async def cmd_ingest_file(args: argparse.Namespace) -> int:
         except (ContractError, TransportError, ValueError):
             shutil.rmtree(runtime_dir, ignore_errors=True)
             return _error("ai_not_configured")
-    if ai_mode == "opencode":
-        config = ai_config_from_env()
-        kill_file = Path(config.kill_file) if config.kill_file else None
-        if not config.ready:
-            shutil.rmtree(runtime_dir, ignore_errors=True)
-            print(json.dumps({"error": "ai_not_configured", "blockers": list(config.blockers)}))
-            return 2
-        try:
-            adapter = await start_ai_adapter(config)
-        except (ContractError, TransportError, OSError, ValueError) as exc:
-            shutil.rmtree(runtime_dir, ignore_errors=True)
-            print(json.dumps({"error": "ai_startup_failed", "message": str(exc)}))
-            return 2
     try:
         if getattr(args, "storage", "mock") == "iris-fhir":
             app = build_iris_fhir_app(

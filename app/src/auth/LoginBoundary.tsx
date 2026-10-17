@@ -195,17 +195,6 @@ function AuthGate() {
   }
 
   return (
-    <>
-      <div className="authbar" role="region" aria-label="Přihlášení">
-        <span className="authbar__label"><Icon name="person" />Přihlášeno: {identity.username}</span>
-        <span className="authbar__detail">Role {identity.role} určuje server. Volba pohledu je pouze zobrazení.</span>
-        <span className="authbar__actions">
-          <button type="button" className="btn btn--secondary" onClick={handleLogout} disabled={loggingOut}>
-            {loggingOut ? 'Odhlašování…' : 'Odhlásit'}
-          </button>
-        </span>
-      </div>
-      <App key={generation} boot={boot} authed />
-    </>
+    <App key={generation} boot={boot} authed onLogout={handleLogout} loggingOut={loggingOut} />
   )
 }

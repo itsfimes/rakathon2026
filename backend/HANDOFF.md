@@ -1,5 +1,12 @@
 # Handoff — Rakathon backend (B1–B6) + real-data work
 
+## Direct AI migration — Phase 1
+- Removed the OpenCode runtime package, legacy factories, isolated smoke script,
+  `ai-check`, and legacy operator guide. Runtime AI modes are now `mock` and
+  `direct`; CLI serve/ingest construct the direct HTTP adapter explicitly.
+  `BackendApp` still requires adapter injection for direct mode. Historical
+  OpenCode implementation and verification notes below are superseded.
+
 ## Objective
 - Implement `rakathon2026/backend` per authoritative `rakathon2026/architecture.md` B1–B6.
 - Python-only, modular, no frontend. CLI mock only.

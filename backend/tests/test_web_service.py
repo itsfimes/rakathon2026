@@ -98,7 +98,12 @@ async def test_workspace_summary_and_honest_coverage() -> None:
     status, body = await service.workspace()
     assert status == 200
     assert body["patients"] == [
-        {"patientId": "synthetic-1", "label": "Synthetic Example", "birthDate": None}
+        {
+            "patientId": "synthetic-1",
+            "label": "Synthetic Example",
+            "birthDate": None,
+            "diagnosis": None,
+        }
     ]
     client.patients_total = 51
     status, body = await service.workspace()
@@ -108,6 +113,77 @@ async def test_workspace_summary_and_honest_coverage() -> None:
     client.fail.add("Patient")
     status, body = await service.workspace()
     assert status == 503 and body["coverage"]["status"] == "unavailable"
+    assert "must not leak" not in str(body)
+
+
+async def test_workspace_diagnosis_is_source_derived_and_fail_closed() -> None:
+    clinical = "http://terminology.hl7.org/CodeSystem/condition-clinical"
+    client = FakeClient()
+    client.responses["Condition"] = bundle(
+        [
+            {
+                "resourceType": "Condition",
+                "id": "c-resolved",
+                "subject": {"reference": "Patient/synthetic-1"},
+                "clinicalStatus": {"coding": [{"system": clinical, "code": "resolved"}]},
+                "code": {
+                    "coding": [
+                        {"system": "http://snomed.info/sct", "code": "444814009", "display": "Old"}
+                    ]
+                },
+                "onsetDateTime": "2026-01-01",
+            },
+            {
+                "resourceType": "Condition",
+                "id": "c-older",
+                "subject": {"reference": "Patient/synthetic-1"},
+                "clinicalStatus": {"coding": [{"system": clinical, "code": "active"}]},
+                "code": {"text": "Synthetic older finding"},
+                "onsetDateTime": "2025-01-01",
+            },
+            {
+                "resourceType": "Condition",
+                "id": "c-newer",
+                "subject": {"reference": "Patient/synthetic-1"},
+                "clinicalStatus": {"coding": [{"system": clinical, "code": "active"}]},
+                "code": {
+                    "coding": [
+                        {
+                            "system": "http://snomed.info/sct",
+                            "code": "59621000",
+                            "display": "Essential hypertension",
+                        }
+                    ]
+                },
+                "onsetDateTime": "2025-06-01",
+            },
+        ],
+        3,
+    )
+    status, body = await WebService(client).workspace()
+    assert status == 200
+    assert body["patients"][0]["diagnosis"] == {
+        "code": "59621000",
+        "label": "Essential hypertension",
+    }
+    client.responses["Condition"] = bundle(
+        [
+            {
+                "resourceType": "Condition",
+                "id": "c-resolved",
+                "subject": {"reference": "Patient/synthetic-1"},
+                "clinicalStatus": {"coding": [{"system": clinical, "code": "resolved"}]},
+                "code": {"text": "Synthetic resolved finding"},
+            }
+        ],
+        1,
+    )
+    status, body = await WebService(client).workspace()
+    assert status == 200 and body["patients"][0]["diagnosis"] is None
+    client.fail.add("Condition")
+    status, body = await WebService(client).workspace()
+    assert status == 503 and body["coverage"]["status"] == "unavailable"
+    assert body["patients"] == []
     assert "must not leak" not in str(body)
 
 

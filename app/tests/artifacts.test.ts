@@ -31,7 +31,7 @@ it.each([
     ['.vite/scripted-manifest.json', JSON.stringify({ label: 'RAKATHON_SCRIPTED_ASSISTANT_V1' })],
     ['assets/assistant.js.map', JSON.stringify({ sources: ['../../src/data/mock/assistant.ts'] })],
     ['.vite/assistant-manifest.json', JSON.stringify({ 'src/data/mock/assistant.ts': {} })],
-    ['assets/script.js', 'Tento volný dotaz skriptovaná ukázka nepodporuje.'],
+    ['assets/script.js', 'Tento volný dotaz asistent nepodporuje.'],
     ['assets/main.js.map', JSON.stringify({ sources: ['../../src/data/mock/fixtures.ts'] })],
     ['.vite/manifest.json', JSON.stringify({ 'src/data/mock/provider.ts': {} })],
     ['assets/another.js', 'Jan Novák'],

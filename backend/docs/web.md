@@ -153,15 +153,20 @@ Entirely synthetic contract example:
 ```json
 {
   "version": 1, "fetchedAt": "2026-10-16T12:00:00+00:00",
-  "patients": [{"patientId": "synthetic-1", "label": "Synthetic Example", "birthDate": null}],
+  "patients": [{"patientId": "synthetic-1", "label": "Synthetic Example", "birthDate": null, "diagnosis": {"code": "59621000", "label": "Essential hypertension"}}],
   "coverage": {"status": "complete", "serverTotal": 1, "reason": null}
 }
 ```
 
 Fixed initial Patient search `_count=50`; validated opaque next links are collected
 server-side within the budgets below, with no browser paging API. Label derives only from
-the first supplied name's text or given/family, otherwise null. No age, disease,
-workflow, priority, next step or dates are invented. `fetchedAt` means facade
+the first supplied name's text or given/family, otherwise null. `diagnosis` is the newest
+`clinicalStatus` `active` Condition of that patient, taken verbatim from the source code
+text or display; it is null when no active Condition exists or when the patient has no
+coded Condition. The per-patient Condition search is fail-closed: any upstream failure
+returns HTTP 503 with an unavailable coverage envelope instead of an empty patient list,
+so an absent field is never reported as absent source data. No age, workflow, priority,
+next step or workflow dates are invented. `fetchedAt` means facade
 fetch time, not source issue time or proven historical local availability.
 
 Failure/truncation/invalid resource returns HTTP 503 with `patients: []`,

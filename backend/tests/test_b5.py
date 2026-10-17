@@ -79,7 +79,7 @@ async def test_unknown_caller_rejected() -> None:
 
 
 class _RecordingAdapter:
-    def __init__(self, delay: float = 0.0, mode: str = "opencode") -> None:
+    def __init__(self, delay: float = 0.0, mode: str = "direct") -> None:
         self._delay = delay
         self._mode = mode
         self.closed = False
@@ -112,11 +112,11 @@ async def test_complete_uses_bytes_ref_when_prompt_empty() -> None:
     blob = BlobStore()
     ref = blob.put(b"hello-ref", "text/plain")
     adapter = _RecordingAdapter()
-    gateway = B5Gateway(blob, adapter, _ok_auth, KillSwitch(allow_remote=True), "opencode")
+    gateway = B5Gateway(blob, adapter, _ok_auth, KillSwitch(allow_remote=True), "direct")
     reply = await gateway.handle(
         _req("coordinator", "ai.complete", {"prompt": "", "bytesRef": ref}, source="b4")
     )
-    assert reply.payload["mode"] == "opencode"
+    assert reply.payload["mode"] == "direct"
     assert adapter.calls == 1
 
 
@@ -124,9 +124,9 @@ async def test_complete_uses_bytes_ref_when_prompt_missing() -> None:
     blob = BlobStore()
     ref = blob.put(b"hello-ref", "text/plain")
     adapter = _RecordingAdapter()
-    gateway = B5Gateway(blob, adapter, _ok_auth, KillSwitch(allow_remote=True), "opencode")
+    gateway = B5Gateway(blob, adapter, _ok_auth, KillSwitch(allow_remote=True), "direct")
     reply = await gateway.handle(_req("coordinator", "ai.complete", {"bytesRef": ref}, source="b4"))
-    assert reply.payload["mode"] == "opencode"
+    assert reply.payload["mode"] == "direct"
     assert adapter.calls == 1
 
 

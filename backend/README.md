@@ -1,7 +1,7 @@
 # Rakathon 2026 backend — offline demo (S1) + opt-in local AI (S3) + DOCX ingest (P2)
 
 Runnable offline Python demo over authenticated Unix sockets. No frontend, no
-network, no IRIS yet. Default AI path is a labelled mock; a real OpenCode
+network, no IRIS yet. Default AI path is a labelled mock; a direct HTTP
 adapter exists but stays disabled unless explicitly opted in. P2 adds stdlib
 DOCX extraction in B1 plus an `ingest-file` CLI that converts a local file
 inside a private ephemeral runtime.
@@ -16,15 +16,15 @@ inside a private ephemeral runtime.
 - `src/rakathon_backend/b3/` — watchdog computation plus tick service
 - `src/rakathon_backend/b4/` — frontend router with B6 checks
 - `src/rakathon_backend/b5/` — AI gateway with mock adapter and kill switch
-- `src/rakathon_backend/b5/opencode/` — `config`, `process`, `client`,
-  `adapter`, `validation` for the opt-in local OpenCode runtime
+- `src/rakathon_backend/b5/direct.py`, `direct_http.py` — opt-in direct HTTP
+  adapter and transport for Azure/OpenAI-compatible providers
 - `src/rakathon_backend/runtime/` — single-process servers, fixtures, demo,
   `application` (BackendApp), `commands` (CLI command helpers), `ingest`
   (`ingest-file` conversion inside an owned ephemeral runtime)
 - `src/rakathon_backend/cli.py` — `demo`, `serve`, `client`, `health`,
-  `ai-check`, `ingest-file`, plus bridge commands
+  `ingest-file`, plus bridge commands
 - `docs/contracts.md` — physical/logical connector contract
-- `docs/opencode.md` — opt-in OpenCode runtime, trust limits, verification
+- `docs/direct-ingestion.md` — direct AI configuration and ingestion contract
 
 ## Run
 
@@ -54,34 +54,33 @@ directory only. Client config is a mock identity and never leaves that dir.
 
 ```sh
 uv run rakathon-backend serve --ai mock
-uv run rakathon-backend ai-check
-RAKATHON_AI_ENABLE=1 RAKATHON_AI_OS_EGRESS_ISOLATED=1 \
-RAKATHON_AI_PROVIDER=local-loopback RAKATHON_AI_MODEL=example-model \
-RAKATHON_AI_BASE_URL=http://127.0.0.1:11434 \
-  uv run rakathon-backend serve --ai opencode --watchdog-interval 1.0
+RAKATHON_AI_ENABLE=1 AI_DISABLED=0 RAKATHON_AI_ALLOW_LOOPBACK=1 \
+RAKATHON_AI_PROVIDER_KIND=openai-compatible RAKATHON_AI_AUTH_SCHEME=none \
+RAKATHON_AI_MODEL=example-model RAKATHON_AI_BASE_URL=http://127.0.0.1:11434/v1 \
+  uv run rakathon-backend serve --ai direct --watchdog-interval 1.0
 ```
 
-`demo` always uses the mock adapter and is unchanged. `serve --ai opencode`
-refuses to start without full opt-in plus operator attestation and never
-falls back to mock on failure; storage mode (`mock`/`bridge`) and AI mode
-(`mock`/`opencode`) are reported separately. `ai-check` validates local
-config and probes `opencode --version` only. See `docs/opencode.md`.
+`demo` always uses the mock adapter and is unchanged. `serve --ai direct`
+refuses to start without explicit provider configuration and opt-in, and never
+falls back to mock on failure. Storage and AI modes (`mock`/`direct`) are
+reported separately. See `docs/direct-ingestion.md`.
 
-Trusted Azure exception (`RAKATHON_AI_PROVIDER_KIND=azure`, explicit
-`RAKATHON_AI_TRUST_AZURE=1` consent, host network by design):
+Azure configuration (`RAKATHON_AI_PROVIDER_KIND=azure`, explicit remote consent):
 
 ```sh
 export RAKATHON_AI_ENABLE=1
-export RAKATHON_AI_TRUST_AZURE=1
+export AI_DISABLED=0
+export RAKATHON_AI_ALLOW_REMOTE=1
 export RAKATHON_AI_PROVIDER_KIND=azure
+export RAKATHON_AI_AUTH_SCHEME=api-key
 export RAKATHON_AI_MODEL=gpt-6-luna-dz-eu
 export RAKATHON_AI_BASE_URL=https://apim-rakathon-q7146n.azure-api.net/openai/v1
-uv run rakathon-backend serve --ai opencode --env-file .env --watchdog-interval 1.0
+uv run rakathon-backend serve --ai direct --env-file .env --watchdog-interval 1.0
 ```
 
 `.env` (mode 0600, owner-only) holds only `RAKATHON_AI_API_KEY`; it is
-never auto-loaded and the key alone never enables AI. `ai-check`
-(including `--env-file .env`) prints `apiKeyPresent`, never the value.
+never auto-loaded and the key alone never enables AI. `azure-env.example` and
+`direct-env.example` document the direct configuration schema without secrets.
 
 ## Example demo output
 
@@ -137,8 +136,9 @@ is ever computed from an age.
 
 ```sh
 uv run rakathon-backend ingest-file --path note.docx --user admin --ai mock
-uv run rakathon-backend ingest-file --path note.docx --user admin --ai opencode \
-  --env-file .env --runtime-dir /tmp/opencode --output-file summary.json
+uv run rakathon-backend ingest-file --path note.docx --user admin --ai direct \
+  --patient-id trusted-patient-id --env-file .env \
+  --runtime-dir /tmp/opencode --output-file summary.json
 ```
 
 `ingest-file` loads `--env-file` in the same process, starts a private
@@ -156,10 +156,9 @@ Offline corpus check (17 DOCX, aggregates only, no PHI output):
 uv run python scripts/verify_docx_corpus.py
 ```
 
-Live Azure conversion was proven with 2 bounded `ingest-file --ai opencode`
-calls (1 clinical → 14 stored resources across Patient/Condition/Observation/
-DiagnosticReport; 1 administrative → single DocumentReference, no forced
-Patient/ServiceRequest). See `docs/opencode.md`.
+Direct ingestion requires an explicit trusted patient association and independently
+validates the provider response before persistence. See `docs/direct-ingestion.md`
+for the current contract and its verification limits.
 
 ## Screening dataset (P3)
 
@@ -215,9 +214,9 @@ IRIS superuser. See `docs/iris.md`.
 
 - B6 matrix is a MOCK; B4 maps its own token to user and never trusts caller IDs.
 - B2 memory store is an explicit MOCK, not IRIS or SQLite.
-- B5 default is mock labelled `mode: mock`; `serve --ai opencode` needs a
-  pinned local binary plus loopback provider and operator attestation;
-  trip disables AI entirely. Real model inference is NOT VERIFIED here.
+- B5 default is mock labelled `mode: mock`; `serve --ai direct` needs explicit
+  provider configuration and consent; a kill-switch trip disables AI entirely.
+  Real model inference is NOT VERIFIED here.
 - Vector anon search is `not_configured` unless a synthetic vector is seeded.
-- No TCP/HTTP listeners except the opt-in loopback OpenCode child; one
-  request/response per Unix-socket connection.
+- The direct AI adapter makes outbound HTTP requests without a child-process
+  listener; internal IPC uses one request/response per Unix-socket connection.

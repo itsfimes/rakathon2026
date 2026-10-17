@@ -23,6 +23,7 @@ from rakathon_backend.web.projection import (
     MAX_ITEMS,
     ProjectionError,
     belongs_to,
+    diagnosis_of,
     patient_summary,
     project,
 )
@@ -164,6 +165,19 @@ class WebService:
             "health": {"ipc": ipc, "database": database},
         }
 
+    async def _conditions(self, patient_id: str) -> list[dict[str, Any]]:
+        payload = await self._read(
+            {
+                "resourceType": "Condition",
+                "patient": f"Patient/{patient_id}",
+                "_count": str(MAX_ITEMS),
+            }
+        )
+        items = resources(payload)
+        if any(not belongs_to(item, patient_id) for item in items):
+            raise ContractError(code="invalid_response", message="Association mismatch")
+        return [project(item, "Condition") for item in items]
+
     async def workspace(self) -> tuple[int, dict[str, Any]]:
         total = None
         try:
@@ -172,6 +186,11 @@ class WebService:
             patients = [patient_summary(item) for item in resources(payload)]
             if len({item["patientId"] for item in patients}) != len(patients):
                 raise ProjectionError("duplicate patient")
+            conditions = await asyncio.gather(
+                *(self._conditions(item["patientId"]) for item in patients)
+            )
+            for item, items in zip(patients, conditions, strict=True):
+                item["diagnosis"] = diagnosis_of(items)
         except UPSTREAM_FAILURES as exc:
             return 503, {
                 "version": 1,

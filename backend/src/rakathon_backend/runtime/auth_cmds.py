@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from rakathon_backend.b2.auth.https_config import AuthHTTPSConfig
+from rakathon_backend.b2.auth.https_store import IrisHTTPSAuthStore
 from rakathon_backend.b2.auth.iris_store import IrisAuthStore
 from rakathon_backend.b2.auth.keys import generate_key_file, load_key_file
 from rakathon_backend.b2.auth.sqlite_store import SQLiteDemoAuthStore
@@ -29,13 +31,21 @@ def _store_for(auth_store: str, auth_dir: Path) -> Any:
     if auth_store == "iris":
         config = IrisSqlConfig.from_env()
         return IrisAuthStore(config)
+    if auth_store == "iris-https":
+        return IrisHTTPSAuthStore(AuthHTTPSConfig.from_env())
     raise ContractError(code="not_configured", message="auth store unknown")
 
 
 def cmd_auth_init(auth_store: str, auth_dir: str) -> int:
-    if auth_store not in ("demo", "iris"):
-        print(json.dumps({"error": "auth store must be demo or iris"}))
+    if auth_store not in ("demo", "iris", "iris-https"):
+        print(json.dumps({"error": "auth store must be demo, iris or iris-https"}))
         return 2
+    if auth_store == "iris-https":
+        try:
+            AuthHTTPSConfig.from_env()
+        except ContractError as exc:
+            print(json.dumps({"error": exc.code, "message": exc.message}))
+            return 1
     try:
         target = create_auth_dir(Path(auth_dir))
     except ContractError as exc:
@@ -58,7 +68,7 @@ def cmd_auth_init(auth_store: str, auth_dir: str) -> int:
         except ContractError as exc:
             print(json.dumps({"error": exc.code, "message": exc.message}))
             return 1
-    else:
+    elif auth_store == "iris":
         try:
             store_iris = _store_for("iris", target)
             store_iris.init_schema()
@@ -91,8 +101,8 @@ def _prompt_password() -> str | None:
 
 
 def cmd_auth_user_add(auth_store: str, auth_dir: str, username: str, role: str) -> int:
-    if auth_store not in ("demo", "iris"):
-        print(json.dumps({"error": "auth store must be demo or iris"}))
+    if auth_store not in ("demo", "iris", "iris-https"):
+        print(json.dumps({"error": "auth store must be demo, iris or iris-https"}))
         return 2
     target = Path(auth_dir)
     try:
@@ -116,8 +126,8 @@ def cmd_auth_user_add(auth_store: str, auth_dir: str, username: str, role: str) 
 
 
 def cmd_auth_user_disable(auth_store: str, auth_dir: str, user_id: str) -> int:
-    if auth_store not in ("demo", "iris"):
-        print(json.dumps({"error": "auth store must be demo or iris"}))
+    if auth_store not in ("demo", "iris", "iris-https"):
+        print(json.dumps({"error": "auth store must be demo, iris or iris-https"}))
         return 2
     target = Path(auth_dir)
     try:

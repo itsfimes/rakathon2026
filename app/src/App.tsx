@@ -4,14 +4,11 @@ import type { BootstrapResult, Session } from './data/contracts'
 import { buildAssistantContext } from './assistant/context'
 import { useAssistant } from './assistant/useAssistant'
 import { isAssistantRole } from './assistant/validation'
-import { AssistantDialog } from './features/assistant/AssistantDialog'
+import { AssistantPanel } from './features/assistant/AssistantPanel'
 import { DetailScopeProvider } from './features/shared/detailScope'
 import { IconSprite } from './icons/IconSprite'
-import { AboutFooter } from './components/shell/AboutFooter'
 import { AppBar } from './components/shell/AppBar'
-import { ModeStrip } from './components/shell/ModeStrip'
 import { InvalidViewState } from './components/shell/DataState'
-import type { ModeStripState } from './components/shell/ModeStrip'
 import { useCaseDetail, useWorkspace } from './hooks/useCaseData'
 import { useDemoActions } from './hooks/useDemoActions'
 import { useStickyOffsets } from './hooks/useStickyOffsets'
@@ -39,8 +36,18 @@ type Boot =
   | { readonly status: 'configuration-error'; readonly message: string }
   | { readonly status: 'session'; readonly session: Session }
 
+interface AppProps {
+  readonly boot: Promise<BootstrapResult>
+  readonly authed?: boolean
+  readonly onLogout?: (() => void) | undefined
+  readonly loggingOut?: boolean
+  /** Demo entry only: show just this role's view and hide the role picker. Presentation, not authorization. */
+  readonly lockedRole?: ViewId
+  readonly onExitDemo?: () => void
+}
+
 /** Composition root. Receives the one bootstrapped session promise (created once per page). */
-export function App({ boot, authed }: { readonly boot: Promise<BootstrapResult>; readonly authed?: boolean }) {
+export function App({ boot, authed, onLogout, loggingOut, lockedRole, onExitDemo }: AppProps) {
   const [state, setState] = useState<Boot>({ status: 'starting' })
   useEffect(() => {
     let active = true
@@ -70,6 +77,9 @@ export function App({ boot, authed }: { readonly boot: Promise<BootstrapResult>;
   const nav = useView()
   const { route, view, navigationId, navigated, focus, restoration, navigate, returnToList, resetNavigation } = nav
   const routeIdentity = routeKey(route)
+  // Demo role lock: a typed or stale hash for another role goes back to the chosen role's own start.
+  const foreignView = lockedRole !== undefined && view !== lockedRole
+  useEffect(() => { if (foreignView) navigate(roleRoute(lockedRole), { replace: true }) }, [foreignView, lockedRole, navigate])
   // Patient preview: the last case a clinician explicitly opened and that loaded fresh; else the default.
   const [previewId, setPreviewId] = useState<string | null>(null)
   const effectiveId = route.page === 'detail' ? route.caseId
@@ -106,31 +116,22 @@ export function App({ boot, authed }: { readonly boot: Promise<BootstrapResult>;
     return () => cancelAnimationFrame(frame)
   }, [navigated, navigationId, focus, restoration, view, workspaceReady])
 
-  // In-page anchors (#obsah, #o-ukazce) only move focus/scroll; the route hash is never rewritten.
-  const [aboutOpen, setAboutOpen] = useState(() => window.location.hash === '#o-ukazce')
-  const showAbout = useCallback(() => {
-    setAboutOpen(true)
-    const footer = document.getElementById('o-ukazce')
-    footer?.scrollIntoView({ block: 'start' })
-    footer?.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true })
-  }, [setAboutOpen])
   const skipToContent = useCallback(() => {
     const content = document.getElementById('obsah')
     content?.scrollIntoView({ block: 'start' })
     content?.focus({ preventScroll: true })
-  }, [])
-  useEffect(() => {
-    // Legacy typed or external fragments: open the disclaimer; the in-memory route stays as it is.
-    const sync = () => { if (window.location.hash === '#o-ukazce') setAboutOpen(true) }
-    window.addEventListener('hashchange', sync)
-    return () => window.removeEventListener('hashchange', sync)
   }, [])
 
   // Assistant: in-memory only. resetKey bumps synchronously at reset START (before the demo
   // mutation finishes) so no transcript or context from the pre-reset state survives.
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [resetKey, setResetKey] = useState(0)
-  const assistantTrigger = useRef<HTMLButtonElement>(null)
+  const resetDemo = useCallback(() => {
+    setResetKey(value => value + 1)
+    setPreviewId(null)
+    resetNavigation()
+    actions.reset()
+  }, [actions, resetNavigation, setPreviewId])
   const readyDetail = detail.status === 'ready' && detail.fresh && detail.value.identity.caseId === effectiveId ? detail.value : null
   // Fresh only for the current revision and while no local demo change is in flight.
   const contextFresh = readyDetail !== null && !actions.busy
@@ -143,22 +144,6 @@ export function App({ boot, authed }: { readonly boot: Promise<BootstrapResult>;
     : session === null || detail.status === 'error' ? 'Data případu nejsou k dispozici.'
       : !contextFresh ? 'Data případu se načítají nebo mění; kontext lze připojit až po načtení.'
         : null
-  function closeAssistant() {
-    assistant.close()
-    setAssistantOpen(false)
-  }
-  // Any real route change closes the assistant during render (the hook clears and aborts on the scope
-  // change). The page heading then owns focus, so the dialog must not pull focus back to its trigger.
-  const [routeClosed, setRouteClosed] = useState(false)
-  const [assistantRoute, setAssistantRoute] = useState(routeIdentity)
-  if (assistantRoute !== routeIdentity) {
-    setAssistantRoute(routeIdentity)
-    if (assistantOpen) {
-      setRouteClosed(true)
-      setAssistantOpen(false)
-    }
-  }
-  const skipFocusRestore = useCallback(() => routeClosed, [routeClosed])
 
   // Case-detail disclosures: closed on any session/role/case/revision/reset change, and not
   // openable while the shown case is a retained snapshot or a local change is running.
@@ -167,17 +152,8 @@ export function App({ boot, authed }: { readonly boot: Promise<BootstrapResult>;
     live: contextFresh,
   }), [session, routeIdentity, effectiveId, version, resetKey, preparationRevision, contextFresh])
 
-  const stripRef = useRef<HTMLDivElement>(null)
   const appbarRef = useRef<HTMLElement>(null)
-  useStickyOffsets(stripRef, appbarRef)
-
-  const strip: ModeStripState = useMemo(() => {
-    if (state.status === 'starting') return { kind: 'starting' }
-    if (state.status === 'configuration-error') return { kind: 'configuration-error', message: state.message }
-    return state.session.mode === 'mock'
-      ? { kind: 'mock', busy: actions.busy, onReset: () => { setResetKey(value => value + 1); setPreviewId(null); resetNavigation(); actions.reset() } }
-      : { kind: 'backend', ...(state.session.connection ? { connection: state.session.connection } : {}) }
-  }, [state, actions, resetNavigation, setResetKey, setPreviewId])
+  useStickyOffsets(appbarRef)
 
   const roleProps = { workspace, detail, actions, route, onNavigate: navigate, detailFresh: contextFresh, authed }
   const clinicianNav = { route, onNavigate: navigate, onReturn: returnToList }
@@ -193,21 +169,26 @@ export function App({ boot, authed }: { readonly boot: Promise<BootstrapResult>;
     <>
       <IconSprite />
       <a className="skip-link" href="#obsah" onClick={event => { if (!isPlainActivation(event)) return; event.preventDefault(); skipToContent() }}>Přeskočit na obsah</a>
-      <ModeStrip ref={stripRef} state={strip} feedback={actions.feedback} />
-      <AppBar ref={appbarRef} view={view} asOf={workspace.status === 'ready' ? workspace.value.asOf : null} demo={session?.mode === 'mock'}
-        assistantOpen={assistantOpen} onAssistant={() => { setRouteClosed(false); setAssistantOpen(true) }} assistantRef={assistantTrigger}
-        onRole={target => navigate(roleRoute(target))} onAbout={showAbout} />
+      <AppBar ref={appbarRef} onLogout={onLogout} loggingOut={loggingOut} onExitDemo={onExitDemo} onResetDemo={actions.available ? resetDemo : undefined} demo={session?.mode === 'mock'} />
       <main id="obsah" className="content" tabIndex={-1}>
+        {actions.feedback && (
+          <p className={actions.feedback.tone === 'error' ? 'demo-feedback is-error' : 'demo-feedback'} role="status">{actions.feedback.text}</p>
+        )}
+        {isAssistantRole(view) && (
+          <AssistantPanel
+            assistant={assistant}
+            view={view}
+            expanded={assistantOpen}
+            onToggle={() => setAssistantOpen(open => !open)}
+            contextReason={contextReason}
+          />
+        )}
         <section className={view === 'pacient' ? 'view view--patient' : 'view'} id={view} aria-labelledby={`t-${view}`}>
-          <DetailScopeProvider value={detailScope}>{route.page === 'invalid-view'
+          <DetailScopeProvider value={detailScope}>{foreignView ? null : route.page === 'invalid-view'
             ? <InvalidViewState view={view} onReturn={() => navigate(roleRoute(view), { replace: true })} />
             : views[view]}</DetailScopeProvider>
         </section>
       </main>
-      <AboutFooter demo={session?.mode === 'mock'} authed={authed} serverAssistant={session?.mode === 'backend' && session.assistant.availability === 'available' && session.assistant.provenance === 'server'} open={aboutOpen} onOpenChange={setAboutOpen} />
-      <AssistantDialog open={assistantOpen} onClose={closeAssistant} assistant={assistant} view={view}
-        sourceLabel={session?.mode === 'backend' && session.connection ? session.connection === 'connected' ? 'Backend IRIS · vývojové připojení' : 'Backend IRIS · není dostupný' : undefined}
-        mode={strip.kind} contextReason={contextReason} returnFocus={assistantTrigger} skipFocusRestore={skipFocusRestore} />
     </>
   )
 }

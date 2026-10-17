@@ -184,10 +184,11 @@ class DirectHttpTransport:
         response_schema: dict[str, Any] | None = None,
         schema_name: str = "rakathon_ingestion",
         retry_rate_limit: bool = False,
+        system_message: str | None = None,
     ) -> str:
         if self._closed:
             raise TransportError(code="ai_closed", message="Direct AI transport is closed")
-        body = self._request_body(prompt, response_schema, schema_name)
+        body = self._request_body(prompt, response_schema, schema_name, system_message)
         budget = CompletionRetry(self._config.timeout_seconds) if retry_rate_limit else None
         try:
             async with asyncio.timeout(self._config.timeout_seconds):
@@ -233,7 +234,8 @@ class DirectHttpTransport:
         raise AssertionError("AI attempt budget exhausted without a result")
 
     def _request_body(
-        self, prompt: str, response_schema: dict[str, Any] | None, schema_name: str
+        self, prompt: str, response_schema: dict[str, Any] | None, schema_name: str,
+        system_message: str | None = None,
     ) -> bytes:
         invalid = ContractError(code="ai_bad_input", message="Invalid AI request")
         if (
@@ -250,6 +252,10 @@ class DirectHttpTransport:
                 "model": self._config.model,
                 "messages": [{"role": "user", "content": prompt}],
             }
+            if system_message is not None:
+                if not isinstance(system_message, str) or not system_message.strip():
+                    raise invalid
+                payload["messages"].insert(0, {"role": "system", "content": system_message})
             if response_schema is not None:
                 if (
                     not isinstance(schema_name, str)

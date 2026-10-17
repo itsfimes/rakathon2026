@@ -6,8 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from rakathon_backend.b5.direct import direct_config_from_env
 from rakathon_backend.cli import _apply_env_file_arg, build_parser
-from rakathon_backend.runtime import commands as cmd_module
+from rakathon_backend.common.errors import ContractError
 from rakathon_backend.runtime.env_file import KNOWN_ENV_KEYS, apply_env_file, parse_env_file
 
 
@@ -103,13 +104,12 @@ def test_key_alone_never_enables_ai(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         monkeypatch.delenv(key, raising=False)
     target = _write(tmp_path / "ai.env", "RAKATHON_AI_API_KEY=lonely-test-key\n")
     assert apply_env_file(target) == ["RAKATHON_AI_API_KEY"]
-    config = cmd_module.ai_config_from_env()
-    assert config.ready is False
-    assert any("ENABLE" in blocker for blocker in config.blockers)
+    with pytest.raises(ContractError, match="explicit enablement"):
+        direct_config_from_env()
 
 
 def test_cli_env_file_flag_exists() -> None:
-    for command in ("serve", "ai-check", "client", "health", "demo"):
+    for command in ("serve", "client", "health", "demo"):
         argv = ["serve", "--env-file", "x"] if command == "serve" else [command, "--env-file", "x"]
         if command == "client":
             argv = [
@@ -129,7 +129,7 @@ def test_cli_env_file_flag_exists() -> None:
 
 def test_cli_rejects_bad_env_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     target = _write(tmp_path / "ai.env", "EVIL_KEY=1\n")
-    args = build_parser().parse_args(["ai-check", "--env-file", str(target)])
+    args = build_parser().parse_args(["serve", "--env-file", str(target)])
     assert _apply_env_file_arg(args) == 2
     body = json.loads(capsys.readouterr().out)
     assert body["error"] == "env_file_rejected"
