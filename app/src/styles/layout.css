@@ -203,6 +203,7 @@
   .assistant__count { flex: none; margin-right: auto; }
   .assistant__composer-bar { justify-content: flex-end; }
   .assistant-attach, .assistant__composer-bar { grid-column: 1 / -1; }
+  .assistant__composer > .assistant-attach__note { grid-column: 1 / -1; margin: 0; padding: var(--s-2) var(--s-3) 0; }
   .assistant__send { margin: var(--s-1); }
   .assistant__composer-bar { padding-block: 0; }
   .assistant__stop { margin: 0 var(--s-1) var(--s-1) 0; }
